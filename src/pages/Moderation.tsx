@@ -59,7 +59,7 @@ export function Moderation() {
             return (
               <div key={r.id} className="p-4 space-y-2">
                 <div className="text-sm">
-                  <span className="font-semibold uppercase text-xs text-[var(--color-brand)]">{r.targetType}</span>
+                  <span className="font-semibold uppercase text-xs text-[var(--color-gold)]">{r.targetType}</span>
                   {' · '}
                   reported by @{reporter?.username} · {timeAgo(r.createdAt)}
                 </div>
@@ -136,7 +136,7 @@ export function Moderation() {
           {users.map((u) => (
             <div key={u.id} className="p-4 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <Link to={`/profile/${u.username}`} className="font-semibold text-[var(--color-brand)] hover:underline">
+                <Link to={`/profile/${u.username}`} className="font-semibold text-[var(--color-gold)] hover:underline">
                   @{u.username}
                 </Link>
                 <div className="text-xs prose-muted">

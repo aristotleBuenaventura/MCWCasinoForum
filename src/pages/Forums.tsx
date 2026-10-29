@@ -18,7 +18,7 @@ export function Forums() {
             <section key={c.id} id={c.id} className="p-4 scroll-mt-20">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold text-lg text-[var(--color-brand)]">{c.name}</h2>
+                  <h2 className="font-semibold text-lg text-[var(--color-gold)]">{c.name}</h2>
                   <p className="text-sm prose-muted mt-1">{c.description}</p>
                   <div className="text-xs prose-muted mt-2">
                     {c.threadCount} threads · {c.postCount} messages
@@ -27,7 +27,7 @@ export function Forums() {
                 <div className="text-sm md:text-right min-w-[200px]">
                   {latest ? (
                     <>
-                      <Link to={`/thread/${latest.id}`} className="text-[var(--color-brand)] hover:underline font-medium">
+                      <Link to={`/thread/${latest.id}`} className="text-[var(--color-gold)] hover:underline font-medium">
                         {latest.title}
                       </Link>
                       <div className="prose-muted text-xs mt-1">

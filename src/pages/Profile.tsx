@@ -121,7 +121,7 @@ export function Profile() {
                 <h1 className="text-2xl font-bold">{user.displayName}</h1>
                 <div className="prose-muted">@{user.username}</div>
                 {user.role !== 'user' && (
-                  <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded bg-[var(--color-brand-soft)] text-[var(--color-brand)] font-semibold uppercase">
+                  <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded bg-[white] text-[var(--color-gold)] font-semibold uppercase">
                     {user.role}
                   </span>
                 )}
@@ -177,13 +177,13 @@ export function Profile() {
             </div>
             <p className="mt-3 text-sm whitespace-pre-wrap">{user.bio || 'No bio yet.'}</p>
             <div className="mt-3 flex flex-wrap gap-4 text-sm">
-              <button type="button" onClick={() => setTab('posts')} className="hover:text-[var(--color-brand)]">
+              <button type="button" onClick={() => setTab('posts')} className="hover:text-[var(--color-gold)]">
                 <strong>{threads.length}</strong> posts
               </button>
-              <button type="button" onClick={() => setTab('followers')} className="hover:text-[var(--color-brand)]">
+              <button type="button" onClick={() => setTab('followers')} className="hover:text-[var(--color-gold)]">
                 <strong>{followerCount(user.id)}</strong> followers
               </button>
-              <button type="button" onClick={() => setTab('following')} className="hover:text-[var(--color-brand)]">
+              <button type="button" onClick={() => setTab('following')} className="hover:text-[var(--color-gold)]">
                 <strong>{followingCount(user.id)}</strong> following
               </button>
               <span className="prose-muted">Joined {timeAgo(user.createdAt)}</span>
@@ -243,7 +243,7 @@ function UserList({
   return (
     <div className="forum-card divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
       {users.map((u) => (
-        <Link key={u.id} to={`/profile/${u.username}`} className="flex gap-3 p-3 hover:bg-[var(--color-brand-soft)]/40 dark:hover:bg-[#243040]">
+        <Link key={u.id} to={`/profile/${u.username}`} className="flex gap-3 p-3 hover:bg-[white]/40 dark:hover:bg-[#243040]">
           <Avatar user={u} />
           <div>
             <div className="font-semibold">{u.displayName}</div>

@@ -1,19 +1,18 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 @theme {
-  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
-  --color-brand: #1769a5;
-  --color-brand-dark: #0f4f7c;
-  --color-brand-soft: #e8f3fb;
-  --color-surface: #f4f6f8;
-  --color-panel: #ffffff;
-  --color-border: #d5dde5;
-  --color-muted: #5b6b7c;
-  --color-ink: #1a2430;
-  --color-accent: #2f8f46;
-  --color-danger: #c0392b;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --color-gold: #d4b15f;
+  --color-gold-bright: #f0d48a;
+  --color-gold-dim: #8a6d32;
+  --color-bg: #07080d;
+  --color-panel: #12141c;
+  --color-panel-2: #171a24;
+  --color-border: #242836;
+  --color-muted: #8b8fa3;
+  --color-ink: #ece8dc;
+  --color-danger: #d4564a;
+  --color-accent: #e08a2a;
 }
 
 * {
@@ -30,13 +29,9 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--color-ink);
-  background: var(--color-surface);
-}
-
-.dark body,
-html.dark body {
-  color: #e8eef4;
-  background: #121820;
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(212, 177, 95, 0.08), transparent 50%),
+    var(--color-bg);
 }
 
 a {
@@ -52,14 +47,18 @@ select {
 }
 
 .forum-card {
-  background: var(--color-panel);
+  background: linear-gradient(180deg, #161924 0%, #12141c 100%);
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
-.dark .forum-card {
-  background: #1a222c;
-  border-color: #2a3542;
+.section-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  font-weight: 700;
 }
 
 .btn {
@@ -67,8 +66,8 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  border-radius: 4px;
-  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  padding: 0.5rem 0.95rem;
   font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
@@ -81,28 +80,27 @@ select {
 }
 
 .btn-primary {
-  background: var(--color-brand);
-  color: white;
+  background: linear-gradient(180deg, #f0d48a, #c9a046);
+  color: #1a1408;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--color-brand-dark);
+  filter: brightness(1.08);
+}
+
+.btn-accent {
+  background: linear-gradient(180deg, #f0a24a, #d4781c);
+  color: #1a1408;
 }
 
 .btn-secondary {
-  background: white;
+  background: #1b1f2b;
   border-color: var(--color-border);
   color: var(--color-ink);
 }
 
-.dark .btn-secondary {
-  background: #1a222c;
-  color: #e8eef4;
-  border-color: #2a3542;
-}
-
 .btn-secondary:hover:not(:disabled) {
-  background: var(--color-brand-soft);
+  border-color: var(--color-gold-dim);
 }
 
 .btn-danger {
@@ -113,27 +111,59 @@ select {
 .input {
   width: 100%;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 8px;
   padding: 0.55rem 0.75rem;
-  background: white;
+  background: #0c0e14;
   color: var(--color-ink);
 }
 
-.dark .input {
-  background: #121820;
-  border-color: #2a3542;
-  color: #e8eef4;
-}
-
 .input:focus {
-  outline: 2px solid color-mix(in oklab, var(--color-brand) 40%, transparent);
-  border-color: var(--color-brand);
+  outline: 2px solid color-mix(in oklab, var(--color-gold) 35%, transparent);
+  border-color: var(--color-gold);
 }
 
 .prose-muted {
   color: var(--color-muted);
 }
 
-.dark .prose-muted {
-  color: #9aabbc;
+.gold-text {
+  color: var(--color-gold);
+}
+
+.placeholder-box {
+  background:
+    linear-gradient(135deg, #1c2030 0%, #141722 50%, #1a1d2a 100%);
+  border: 1px dashed #32384a;
+  color: #6d7388;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.star {
+  color: #e8c547;
+}
+
+.nav-link {
+  color: #c9cdd8;
+  font-weight: 500;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  color: var(--color-gold-bright);
+}
+
+.table-row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table-row:hover {
+  background: rgba(212, 177, 95, 0.04);
 }

@@ -74,7 +74,7 @@ export function Register() {
         </button>
       </form>
       <p className="text-sm mt-4 prose-muted">
-        Already registered? <Link to="/login" className="text-[var(--color-brand)] hover:underline">Log in</Link>
+        Already registered? <Link to="/login" className="text-[var(--color-gold)] hover:underline">Log in</Link>
       </p>
     </div>
   )

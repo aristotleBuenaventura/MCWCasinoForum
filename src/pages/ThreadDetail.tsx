@@ -1,5 +1,5 @@
-import { Flag, Heart, Share2, Trash2 } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
+import { Flag, Heart, Pin, Share2, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { useToast } from '../components/Toast'
@@ -54,7 +54,7 @@ function CommentItem({
           <Avatar user={author} size={32} />
           <div className="min-w-0 flex-1">
             <div className="text-sm">
-              <Link to={`/profile/${author?.username}`} className="font-semibold hover:text-[var(--color-brand)]">
+              <Link to={`/profile/${author?.username}`} className="font-semibold hover:text-[var(--color-gold)]">
                 {author?.displayName}
               </Link>
               <span className="prose-muted"> · {timeAgo(comment.createdAt)}</span>
@@ -137,12 +137,22 @@ export function ThreadDetail() {
     likeCount,
     report,
     banUser,
+    bumpViews,
+    togglePin,
   } = useForum()
 
   const thread = state.threads.find((t) => t.id === id)
   const author = thread ? getUser(thread.authorId) : undefined
   const forum = thread ? state.categories.find((c) => c.id === thread.forumId) : undefined
   const [content, setContent] = useState('')
+
+  useEffect(() => {
+    if (!id) return
+    const key = `mcw_viewed_${id}`
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, '1')
+    bumpViews(id)
+  }, [id, bumpViews])
 
   const { roots, childrenMap } = useMemo(() => {
     const comments = state.comments.filter((c) => c.threadId === id)
@@ -200,19 +210,29 @@ export function ThreadDetail() {
   return (
     <div className="space-y-4">
       <div className="text-sm prose-muted">
-        <Link to="/forums" className="text-[var(--color-brand)] hover:underline">
-          Forums
+        <Link to="/communities" className="text-[var(--color-gold)] hover:underline">
+          Communities
         </Link>
-        {forum && <> / {forum.name}</>}
+        {forum && (
+          <>
+            {' / '}
+            <Link to={`/communities/${forum.slug}`} className="text-[var(--color-gold)] hover:underline">
+              {forum.name}
+            </Link>
+          </>
+        )}
       </div>
 
       <article className="forum-card p-5">
         <div className="flex gap-3">
           <Avatar user={author} size={48} />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold">{thread.title}</h1>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              {thread.pinned && <Pin size={18} className="text-[var(--color-gold)]" />}
+              {thread.title}
+            </h1>
             <div className="text-sm prose-muted mt-1">
-              <Link to={`/profile/${author?.username}`} className="text-[var(--color-brand)] hover:underline">
+              <Link to={`/profile/${author?.username}`} className="text-[var(--color-gold)] hover:underline">
                 {author?.displayName}
               </Link>
               {' · '}
@@ -251,6 +271,11 @@ export function ThreadDetail() {
                   }}
                 >
                   <Flag size={16} /> Report
+                </button>
+              )}
+              {isMod && (
+                <button type="button" className="btn btn-secondary" onClick={() => togglePin(thread.id)}>
+                  <Pin size={16} /> {thread.pinned ? 'Unpin' : 'Pin'}
                 </button>
               )}
               {canDelete && (
@@ -302,7 +327,7 @@ export function ThreadDetail() {
           </form>
         ) : (
           <div className="forum-card p-4 mb-3 text-sm prose-muted">
-            <Link to="/login" className="text-[var(--color-brand)] hover:underline">
+            <Link to="/login" className="text-[var(--color-gold)] hover:underline">
               Log in
             </Link>{' '}
             to comment.

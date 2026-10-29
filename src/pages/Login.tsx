@@ -50,7 +50,7 @@ export function Login() {
         </button>
       </form>
       <p className="text-sm mt-4 prose-muted">
-        No account? <Link to="/register" className="text-[var(--color-brand)] hover:underline">Sign up</Link>
+        No account? <Link to="/register" className="text-[var(--color-gold)] hover:underline">Sign up</Link>
       </p>
     </div>
   )

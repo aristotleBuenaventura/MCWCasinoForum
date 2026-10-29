@@ -1,25 +1,19 @@
-import {
-  Bell,
-  Menu,
-  Moon,
-  Search,
-  Sun,
-  UserRound,
-  X,
-} from 'lucide-react'
+import { Bell, Menu, Search, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useForum } from '../../context/ForumContext'
+import { Avatar } from '../Avatar'
 
-const primaryLinks = [
-  { to: '/', label: "What's New" },
-  { to: '/forums', label: 'Forum Listing' },
-  { to: '/members', label: 'Members' },
-  { to: '/search', label: 'Advanced Search' },
+const links = [
+  { to: '/', label: 'Home' },
+  { to: '/communities', label: 'Communities' },
+  { to: '/communities/slot-games', label: 'Games' },
+  { to: '/communities/casino-reviews', label: 'Reviews' },
+  { to: '/members', label: 'Leaderboards' },
 ]
 
 export function Header() {
-  const { currentUser, logout, unreadCount, state, toggleDarkMode, isMod } = useForum()
+  const { currentUser, logout, unreadCount, isMod } = useForum()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
@@ -32,80 +26,42 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-[var(--color-border)] bg-white dark:bg-[#1a222c] dark:border-[#2a3542]">
-      <div className="bg-[linear-gradient(90deg,#0f4f7c,#1769a5_45%,#2a8bc7)] text-white">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded bg-white/15 flex items-center justify-center font-bold text-lg shrink-0">
-              MCW
-            </div>
-            <div className="min-w-0">
-              <div className="font-bold text-lg leading-tight truncate">MCW Casino Forum</div>
-              <div className="text-xs text-white/80 truncate">Community for players & enthusiasts</div>
-            </div>
-          </Link>
-          <form onSubmit={onSearch} className="hidden md:flex items-center gap-2 flex-1 max-w-md ml-6">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search the entire site"
-                className="w-full rounded pl-9 pr-3 py-2 text-sm text-[var(--color-ink)] bg-white"
-              />
-            </div>
-            <button type="submit" className="btn bg-white/15 text-white border border-white/30 hover:bg-white/25">
-              Search
-            </button>
-          </form>
-          <button
-            type="button"
-            className="md:hidden btn bg-white/15 text-white border border-white/30"
-            onClick={() => setOpen((v) => !v)}
-            aria-label="Menu"
-          >
-            {open ? <X size={18} /> : <Menu size={18} />}
-          </button>
-        </div>
-      </div>
+    <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[#0b0d14]/95 backdrop-blur">
+      <div className="max-w-[1440px] mx-auto px-4 h-16 flex items-center gap-4">
+        <Link to="/" className="flex items-center gap-2 shrink-0">
+          <div className="h-9 w-9 rounded-md bg-gradient-to-br from-[#f0d48a] to-[#8a6d32] text-[#1a1408] font-black flex items-center justify-center text-xs">
+            MCW
+          </div>
+          <div className="leading-tight">
+            <div className="font-bold tracking-wide gold-text">MCW</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-[#9aa0b3]">Forum</div>
+          </div>
+        </Link>
 
-      <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2">
-        <nav className="hidden md:flex flex-wrap items-center gap-1 text-sm">
-          {primaryLinks.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              className={({ isActive }) =>
-                `px-2.5 py-1.5 rounded hover:bg-[var(--color-brand-soft)] dark:hover:bg-[#243040] ${
-                  isActive ? 'text-[var(--color-brand)] font-semibold' : 'prose-muted'
-                }`
-              }
-              end={l.to === '/'}
-            >
+        <nav className="hidden lg:flex items-center gap-1 text-sm">
+          {links.map((l) => (
+            <NavLink key={l.to} to={l.to} end={l.to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               {l.label}
             </NavLink>
           ))}
-          {isMod && (
-            <NavLink
-              to="/moderation"
-              className={({ isActive }) =>
-                `px-2.5 py-1.5 rounded hover:bg-[var(--color-brand-soft)] ${
-                  isActive ? 'text-[var(--color-brand)] font-semibold' : 'prose-muted'
-                }`
-              }
-            >
-              Moderation
-            </NavLink>
-          )}
         </nav>
 
-        <div className="flex items-center gap-2 ml-auto">
-          <button type="button" className="btn btn-secondary" onClick={toggleDarkMode} aria-label="Toggle theme">
-            {state.darkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+        <form onSubmit={onSearch} className="hidden md:flex flex-1 max-w-md ml-auto">
+          <div className="relative w-full">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b8fa3]" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search discussions, games, and reviews"
+              className="input pl-9 h-10"
+            />
+          </div>
+        </form>
+
+        <div className="flex items-center gap-2 ml-auto md:ml-0">
           {currentUser ? (
             <>
-              <Link to="/notifications" className="btn btn-secondary relative">
+              <Link to="/notifications" className="btn btn-secondary relative px-2.5">
                 <Bell size={16} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[var(--color-danger)] text-white text-[10px] flex items-center justify-center">
@@ -113,13 +69,18 @@ export function Header() {
                   </span>
                 )}
               </Link>
-              <Link to="/create" className="btn btn-primary">
-                Create thread
+              <Link to="/create" className="btn btn-accent hidden sm:inline-flex">
+                Create Post
               </Link>
-              <Link to={`/profile/${currentUser.username}`} className="btn btn-secondary">
-                <UserRound size={16} /> {currentUser.username}
+              {isMod && (
+                <Link to="/admin" className="btn btn-secondary hidden sm:inline-flex">
+                  Admin
+                </Link>
+              )}
+              <Link to={`/profile/${currentUser.username}`} className="flex items-center gap-2">
+                <Avatar user={currentUser} size={32} />
               </Link>
-              <button type="button" className="btn btn-secondary" onClick={logout}>
+              <button type="button" className="btn btn-secondary hidden md:inline-flex" onClick={logout}>
                 Log out
               </button>
             </>
@@ -129,35 +90,33 @@ export function Header() {
                 Log in
               </Link>
               <Link to="/register" className="btn btn-primary">
-                Sign up
+                Join
               </Link>
             </>
           )}
+          <button type="button" className="lg:hidden btn btn-secondary px-2.5" onClick={() => setOpen((v) => !v)}>
+            {open ? <X size={16} /> : <Menu size={16} />}
+          </button>
         </div>
       </div>
 
       {open && (
-        <div className="md:hidden border-t border-[var(--color-border)] px-4 py-3 space-y-2">
-          <form onSubmit={onSearch} className="flex gap-2">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search..."
-              className="input"
-            />
-            <button type="submit" className="btn btn-primary">
-              Go
-            </button>
+        <div className="lg:hidden border-t border-[var(--color-border)] px-4 py-3 space-y-2 bg-[#0b0d14]">
+          <form onSubmit={onSearch} className="flex gap-2 md:hidden">
+            <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search..." />
+            <button type="submit" className="btn btn-primary">Go</button>
           </form>
-          {primaryLinks.map((l) => (
+          {links.map((l) => (
             <Link key={l.to} to={l.to} className="block py-1.5" onClick={() => setOpen(false)}>
               {l.label}
             </Link>
           ))}
-          {isMod && (
-            <Link to="/moderation" className="block py-1.5" onClick={() => setOpen(false)}>
-              Moderation
-            </Link>
+          {currentUser && (
+            <>
+              <Link to="/create" className="block py-1.5" onClick={() => setOpen(false)}>Create Post</Link>
+              {isMod && <Link to="/admin" className="block py-1.5" onClick={() => setOpen(false)}>Admin</Link>}
+              <button type="button" className="block py-1.5" onClick={() => { logout(); setOpen(false) }}>Log out</button>
+            </>
           )}
         </div>
       )}

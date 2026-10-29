@@ -33,8 +33,8 @@ export function Notifications() {
           <Link
             key={n.id}
             to={n.link}
-            className={`block p-4 hover:bg-[var(--color-brand-soft)]/40 dark:hover:bg-[#243040] ${
-              n.read ? '' : 'bg-[var(--color-brand-soft)]/30'
+            className={`block p-4 hover:bg-[white]/40 dark:hover:bg-[#243040] ${
+              n.read ? '' : 'bg-[white]/30'
             }`}
           >
             <div className="text-sm">{n.message}</div>

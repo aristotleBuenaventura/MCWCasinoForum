@@ -1,21 +1,27 @@
 # MCW Casino Forum
 
-A React forum inspired by classic community layouts (e.g. Dog Forum / XenForo), with Threads-style engagement.
+Dark casino community forum: homepage hub, nested communities (BlackHatWorld-style), and an admin CMS for ads and featured content.
 
 ## Features
 
+- Dark-only UI inspired by the proposed MCW homepage
 - Auth: register, login, logout, roles (`user` / `moderator` / `admin`)
-- Threads: create, view, like, share, report, delete
-- Comments with nested replies
+- Nested communities → topic → thread list → discussion
+- Threads: create, like, comment, share, report, pin
 - Image & video uploads on posts
-- Profiles, follow / unfollow, followers & following
-- Search (threads, members, comments)
-- Notifications
-- Moderator tools: delete posts/comments, remove users, report queue
-- Dark / light mode
-- Dog Forum–style home layout (hero stats, feed, top forums, sidebar)
+- Profiles, follow / unfollow
+- Search, notifications, moderation
+- Admin/mod dashboard:
+  - Rotating ads (image/GIF + URL, interval in seconds)
+  - Trending games
+  - Featured communities
+  - Top game providers
+  - Community CRUD
+  - Thread pins, reports, user removal
+- Home cards (reviews, bonuses, wins, guides) come from **real forum threads**
+- Placeholder images for logos/banners/ads; Facebook-style silhouette avatars
 
-Data is stored in **localStorage** for a zero-config demo (no backend required).
+Data is stored in **localStorage** (no backend required for the demo).
 
 ## Quick start
 
@@ -33,6 +39,8 @@ npm run dev
 | caraspins  | password123    | user      |
 | moderator  | moderator123  | moderator |
 | admin      | admin123       | admin     |
+
+Admin and moderator share the same dashboard at `/admin`.
 
 ## Stack
 

@@ -64,7 +64,7 @@ export function Search() {
             <h2 className="font-semibold">Members ({results.users.length})</h2>
             <div className="forum-card divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
               {results.users.map((u) => (
-                <Link key={u.id} to={`/profile/${u.username}`} className="flex gap-3 p-3 hover:bg-[var(--color-brand-soft)]/40">
+                <Link key={u.id} to={`/profile/${u.username}`} className="flex gap-3 p-3 hover:bg-[white]/40">
                   <Avatar user={u} />
                   <div>
                     <div className="font-semibold">{u.displayName}</div>
@@ -82,7 +82,7 @@ export function Search() {
               {results.comments.map((c) => {
                 const author = getUser(c.authorId)
                 return (
-                  <Link key={c.id} to={`/thread/${c.threadId}`} className="forum-card p-3 block hover:bg-[var(--color-brand-soft)]/30">
+                  <Link key={c.id} to={`/thread/${c.threadId}`} className="forum-card p-3 block hover:bg-[white]/30">
                     <div className="text-sm prose-muted">@{author?.username}</div>
                     <p className="text-sm mt-1 line-clamp-2">{c.content}</p>
                   </Link>

@@ -24,14 +24,14 @@ export function Sidebar() {
   return (
     <aside className="space-y-4">
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 bg-[var(--color-brand-soft)] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="px-3 py-2 bg-[white] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
           Our Top Forums
         </div>
         <ul className="divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
           {state.categories.slice(0, 5).map((c) => (
             <li key={c.id}>
-              <Link to={`/forums#${c.id}`} className="block px-3 py-2.5 hover:bg-[var(--color-brand-soft)]/60 dark:hover:bg-[#243040]">
-                <div className="font-medium text-sm text-[var(--color-brand)]">{c.name}</div>
+              <Link to={`/forums#${c.id}`} className="block px-3 py-2.5 hover:bg-[white]/60 dark:hover:bg-[#243040]">
+                <div className="font-medium text-sm text-[var(--color-gold)]">{c.name}</div>
                 <div className="text-xs prose-muted">
                   {c.threadCount} threads · {c.postCount} posts
                 </div>
@@ -42,13 +42,13 @@ export function Sidebar() {
       </section>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 bg-[var(--color-brand-soft)] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="px-3 py-2 bg-[white] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
           Top Contributors this Month
         </div>
         <ul className="divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
           {topContributors.map(({ user, replies }) => (
             <li key={user!.id} className="px-3 py-2.5 flex items-center justify-between gap-2 text-sm">
-              <Link to={`/profile/${user!.username}`} className="text-[var(--color-brand)] font-medium hover:underline">
+              <Link to={`/profile/${user!.username}`} className="text-[var(--color-gold)] font-medium hover:underline">
                 {user!.displayName}
               </Link>
               <span className="prose-muted text-xs">{replies} Replies</span>
@@ -61,7 +61,7 @@ export function Sidebar() {
       </section>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 bg-[var(--color-brand-soft)] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="px-3 py-2 bg-[white] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
           Forum statistics
         </div>
         <dl className="px-3 py-3 grid grid-cols-2 gap-y-2 text-sm">
@@ -74,7 +74,7 @@ export function Sidebar() {
           <dt className="prose-muted">Latest member</dt>
           <dd className="text-right font-semibold">
             {latest ? (
-              <Link to={`/profile/${latest.username}`} className="text-[var(--color-brand)] hover:underline">
+              <Link to={`/profile/${latest.username}`} className="text-[var(--color-gold)] hover:underline">
                 {latest.username}
               </Link>
             ) : (

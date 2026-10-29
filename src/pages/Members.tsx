@@ -38,7 +38,7 @@ export function Members() {
           <Link
             key={u.id}
             to={`/profile/${u.username}`}
-            className="flex gap-3 p-4 hover:bg-[var(--color-brand-soft)]/40 dark:hover:bg-[#243040]"
+            className="flex gap-3 p-4 hover:bg-[white]/40 dark:hover:bg-[#243040]"
           >
             <Avatar user={u} size={44} />
             <div className="min-w-0 flex-1">
@@ -46,7 +46,7 @@ export function Members() {
                 <span className="font-semibold">{u.displayName}</span>
                 <span className="text-sm prose-muted">@{u.username}</span>
                 {u.role !== 'user' && (
-                  <span className="text-[10px] uppercase font-bold text-[var(--color-brand)]">{u.role}</span>
+                  <span className="text-[10px] uppercase font-bold text-[var(--color-gold)]">{u.role}</span>
                 )}
               </div>
               <p className="text-sm prose-muted line-clamp-1 mt-0.5">{u.bio || 'No bio'}</p>

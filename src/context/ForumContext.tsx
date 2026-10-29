@@ -10,8 +10,13 @@ import {
 import { createSeedState } from '../data/seed'
 import { uid } from '../lib/utils'
 import type {
+  Ad,
+  AdSlot,
+  CmsItem,
   Comment,
+  ForumCategory,
   ForumState,
+  GameProvider,
   MediaType,
   Notification,
   Role,
@@ -19,7 +24,7 @@ import type {
   User,
 } from '../types'
 
-const STORAGE_KEY = 'mcw-casino-forum-v1'
+const STORAGE_KEY = 'mcw-casino-forum-v2'
 
 type RegisterInput = {
   username: string
@@ -36,6 +41,16 @@ type CreateThreadInput = {
   mediaType?: MediaType
 }
 
+type CategoryInput = {
+  id?: string
+  slug: string
+  name: string
+  description: string
+  parentId: string | null
+  featured: boolean
+  order: number
+}
+
 type ForumContextValue = {
   state: ForumState
   currentUser: User | null
@@ -47,6 +62,8 @@ type ForumContextValue = {
   createThread: (input: CreateThreadInput) => Thread | { error: string }
   updateThread: (id: string, patch: Partial<Pick<Thread, 'title' | 'content'>>) => void
   deleteThread: (id: string) => void
+  togglePin: (id: string) => void
+  bumpViews: (id: string) => void
   addComment: (threadId: string, content: string, parentId?: string | null) => Comment | { error: string }
   deleteComment: (id: string) => void
   toggleLike: (targetType: 'thread' | 'comment', targetId: string) => void
@@ -61,10 +78,24 @@ type ForumContextValue = {
   banUser: (userId: string, banned?: boolean) => void
   setRole: (userId: string, role: Role) => void
   markNotificationsRead: () => void
-  toggleDarkMode: () => void
   resetDemoData: () => void
   getUser: (id: string) => User | undefined
   getUserByUsername: (username: string) => User | undefined
+  getCategoryBySlug: (slug: string) => ForumCategory | undefined
+  childCategories: (parentId: string) => ForumCategory[]
+  leafCategories: ForumCategory[]
+  topCategories: ForumCategory[]
+  saveCategory: (input: CategoryInput) => { ok: true } | { ok: false; error: string }
+  deleteCategory: (id: string) => { ok: true } | { ok: false; error: string }
+  toggleFeatured: (id: string) => void
+  saveAd: (ad: Omit<Ad, 'id'> & { id?: string }) => void
+  deleteAd: (id: string) => void
+  adsForSlot: (slot: AdSlot) => Ad[]
+  setAdRotateSec: (sec: number) => void
+  saveTrendingGame: (item: Omit<CmsItem, 'id'> & { id?: string }) => void
+  deleteTrendingGame: (id: string) => void
+  saveProvider: (item: Omit<GameProvider, 'id'> & { id?: string }) => void
+  deleteProvider: (id: string) => void
   unreadCount: number
 }
 
@@ -73,7 +104,10 @@ const ForumContext = createContext<ForumContextValue | null>(null)
 function loadState(): ForumState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as ForumState
+    if (raw) {
+      const parsed = JSON.parse(raw) as ForumState
+      if (parsed?.categories && parsed?.ads && parsed?.trendingGames) return parsed
+    }
   } catch {
     /* ignore */
   }
@@ -110,6 +144,14 @@ function pushNotif(
   }
 }
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 export function ForumProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ForumState>(() => loadState())
 
@@ -118,8 +160,8 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   }, [state])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', state.darkMode)
-  }, [state.darkMode])
+    document.documentElement.classList.add('dark')
+  }, [])
 
   const currentUser = useMemo(
     () => state.users.find((u) => u.id === state.currentUserId && !u.banned) ?? null,
@@ -141,6 +183,30 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const getUserByUsername = useCallback(
     (username: string) => state.users.find((u) => u.username.toLowerCase() === username.toLowerCase()),
     [state.users],
+  )
+
+  const getCategoryBySlug = useCallback(
+    (slug: string) => state.categories.find((c) => c.slug === slug),
+    [state.categories],
+  )
+
+  const childCategories = useCallback(
+    (parentId: string) =>
+      [...state.categories].filter((c) => c.parentId === parentId).sort((a, b) => a.order - b.order),
+    [state.categories],
+  )
+
+  const topCategories = useMemo(
+    () => [...state.categories].filter((c) => !c.parentId).sort((a, b) => a.order - b.order),
+    [state.categories],
+  )
+
+  const leafCategories = useMemo(
+    () =>
+      state.categories
+        .filter((c) => !state.categories.some((x) => x.parentId === c.id))
+        .sort((a, b) => a.order - b.order),
+    [state.categories],
   )
 
   const register: ForumContextValue['register'] = (input) => {
@@ -177,9 +243,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
 
   const login: ForumContextValue['login'] = (usernameOrEmail, password) => {
     const key = usernameOrEmail.trim().toLowerCase()
-    const user = state.users.find(
-      (u) => u.username === key || u.email === key,
-    )
+    const user = state.users.find((u) => u.username === key || u.email === key)
     if (!user || user.password !== password) {
       return { ok: false, error: 'Invalid username/email or password.' }
     }
@@ -210,6 +274,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
       content: input.content.trim(),
       mediaUrl: input.mediaUrl ?? null,
       mediaType: input.mediaType ?? null,
+      pinned: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       views: 0,
@@ -250,6 +315,21 @@ export function ForumProvider({ children }: { children: ReactNode }) {
       }
       return recalculateCategories(next)
     })
+  }
+
+  const togglePin = (id: string) => {
+    if (!isMod) return
+    setState((s) => ({
+      ...s,
+      threads: s.threads.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)),
+    }))
+  }
+
+  const bumpViews = (id: string) => {
+    setState((s) => ({
+      ...s,
+      threads: s.threads.map((t) => (t.id === id ? { ...t, views: t.views + 1 } : t)),
+    }))
   }
 
   const addComment: ForumContextValue['addComment'] = (threadId, content, parentId = null) => {
@@ -318,10 +398,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
 
       let next: ForumState = {
         ...s,
-        likes: [
-          ...s.likes,
-          { id: uid('like'), userId: currentUser.id, targetType, targetId },
-        ],
+        likes: [...s.likes, { id: uid('like'), userId: currentUser.id, targetType, targetId }],
       }
 
       if (targetType === 'thread') {
@@ -369,10 +446,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
       }
       let next: ForumState = {
         ...s,
-        follows: [
-          ...s.follows,
-          { id: uid('follow'), followerId: currentUser.id, followingId: userId },
-        ],
+        follows: [...s.follows, { id: uid('follow'), followerId: currentUser.id, followingId: userId }],
       }
       next = pushNotif(next, {
         userId,
@@ -425,7 +499,11 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     if (!isMod) return
     setState((s) => ({
       ...s,
-      users: s.users.map((u) => (u.id === userId && u.role === 'user' ? { ...u, banned } : u)),
+      users: s.users.map((u) =>
+        u.id === userId && (u.role === 'user' || currentUser?.role === 'admin')
+          ? { ...u, banned }
+          : u,
+      ),
       currentUserId: banned && s.currentUserId === userId ? null : s.currentUserId,
     }))
   }
@@ -448,9 +526,114 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const toggleDarkMode = () => setState((s) => ({ ...s, darkMode: !s.darkMode }))
-
   const resetDemoData = () => setState(createSeedState())
+
+  const saveCategory: ForumContextValue['saveCategory'] = (input) => {
+    if (!isMod) return { ok: false, error: 'Moderator access required.' }
+    const slug = slugify(input.slug || input.name)
+    if (!slug) return { ok: false, error: 'Slug is required.' }
+    if (state.categories.some((c) => c.slug === slug && c.id !== input.id)) {
+      return { ok: false, error: 'That slug is already used.' }
+    }
+    setState((s) => {
+      if (input.id) {
+        return {
+          ...s,
+          categories: s.categories.map((c) =>
+            c.id === input.id
+              ? { ...c, slug, name: input.name, description: input.description, parentId: input.parentId, featured: input.featured, order: input.order }
+              : c,
+          ),
+        }
+      }
+      const category: ForumCategory = {
+        id: uid('cat'),
+        slug,
+        name: input.name.trim(),
+        description: input.description.trim(),
+        parentId: input.parentId,
+        featured: input.featured,
+        order: input.order,
+        threadCount: 0,
+        postCount: 0,
+      }
+      return { ...s, categories: [...s.categories, category] }
+    })
+    return { ok: true }
+  }
+
+  const deleteCategory: ForumContextValue['deleteCategory'] = (id) => {
+    if (!isMod) return { ok: false, error: 'Moderator access required.' }
+    if (state.categories.some((c) => c.parentId === id)) {
+      return { ok: false, error: 'Remove nested communities first.' }
+    }
+    if (state.threads.some((t) => t.forumId === id)) {
+      return { ok: false, error: 'This community still has threads.' }
+    }
+    setState((s) => ({ ...s, categories: s.categories.filter((c) => c.id !== id) }))
+    return { ok: true }
+  }
+
+  const toggleFeatured = (id: string) => {
+    if (!isMod) return
+    setState((s) => ({
+      ...s,
+      categories: s.categories.map((c) => (c.id === id ? { ...c, featured: !c.featured } : c)),
+    }))
+  }
+
+  const saveAd: ForumContextValue['saveAd'] = (ad) => {
+    if (!isMod) return
+    setState((s) => {
+      if (ad.id) {
+        return { ...s, ads: s.ads.map((a) => (a.id === ad.id ? { ...a, ...ad, id: ad.id } : a)) }
+      }
+      return { ...s, ads: [...s.ads, { ...ad, id: uid('ad') }] }
+    })
+  }
+
+  const deleteAd = (id: string) => {
+    if (!isMod) return
+    setState((s) => ({ ...s, ads: s.ads.filter((a) => a.id !== id) }))
+  }
+
+  const adsForSlot = (slot: AdSlot) =>
+    [...state.ads].filter((a) => a.slot === slot).sort((a, b) => a.order - b.order)
+
+  const setAdRotateSec = (sec: number) => {
+    if (!isMod) return
+    setState((s) => ({ ...s, adRotateSec: Math.max(2, Math.min(60, Math.round(sec) || 5)) }))
+  }
+
+  const saveTrendingGame: ForumContextValue['saveTrendingGame'] = (item) => {
+    if (!isMod) return
+    setState((s) => {
+      if (item.id) {
+        return { ...s, trendingGames: s.trendingGames.map((g) => (g.id === item.id ? { ...g, ...item, id: item.id } : g)) }
+      }
+      return { ...s, trendingGames: [...s.trendingGames, { ...item, id: uid('tg') }] }
+    })
+  }
+
+  const deleteTrendingGame = (id: string) => {
+    if (!isMod) return
+    setState((s) => ({ ...s, trendingGames: s.trendingGames.filter((g) => g.id !== id) }))
+  }
+
+  const saveProvider: ForumContextValue['saveProvider'] = (item) => {
+    if (!isMod) return
+    setState((s) => {
+      if (item.id) {
+        return { ...s, providers: s.providers.map((p) => (p.id === item.id ? { ...p, ...item, id: item.id } : p)) }
+      }
+      return { ...s, providers: [...s.providers, { ...item, id: uid('prov') }] }
+    })
+  }
+
+  const deleteProvider = (id: string) => {
+    if (!isMod) return
+    setState((s) => ({ ...s, providers: s.providers.filter((p) => p.id !== id) }))
+  }
 
   const value: ForumContextValue = {
     state,
@@ -463,6 +646,8 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     createThread,
     updateThread,
     deleteThread,
+    togglePin,
+    bumpViews,
     addComment,
     deleteComment,
     toggleLike,
@@ -477,10 +662,24 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     banUser,
     setRole,
     markNotificationsRead,
-    toggleDarkMode,
     resetDemoData,
     getUser,
     getUserByUsername,
+    getCategoryBySlug,
+    childCategories,
+    leafCategories,
+    topCategories,
+    saveCategory,
+    deleteCategory,
+    toggleFeatured,
+    saveAd,
+    deleteAd,
+    adsForSlot,
+    setAdRotateSec,
+    saveTrendingGame,
+    deleteTrendingGame,
+    saveProvider,
+    deleteProvider,
     unreadCount,
   }
 

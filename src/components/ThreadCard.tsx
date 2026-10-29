@@ -29,14 +29,14 @@ export function ThreadCard({ thread }: { thread: Thread }) {
       <Avatar user={author} size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-          <Link to={`/profile/${author?.username}`} className="font-semibold hover:text-[var(--color-brand)]">
+          <Link to={`/profile/${author?.username}`} className="font-semibold hover:text-[var(--color-gold)]">
             {author?.displayName ?? 'Unknown'}
           </Link>
           <span className="prose-muted">@{author?.username}</span>
           <span className="prose-muted">· {timeAgo(thread.createdAt)}</span>
         </div>
         <Link to={`/thread/${thread.id}`} className="block mt-1">
-          <h3 className="font-semibold text-[1.05rem] text-[var(--color-brand)] hover:underline">
+          <h3 className="font-semibold text-[1.05rem] text-[var(--color-gold)] hover:underline">
             {thread.title}
           </h3>
           <p className="mt-1 text-sm line-clamp-2 prose-muted">{thread.content}</p>
@@ -64,10 +64,10 @@ export function ThreadCard({ thread }: { thread: Thread }) {
           >
             <Heart size={15} fill={liked ? 'currentColor' : 'none'} /> {likes}
           </button>
-          <Link to={`/thread/${thread.id}`} className="inline-flex items-center gap-1 hover:text-[var(--color-brand)]">
+          <Link to={`/thread/${thread.id}`} className="inline-flex items-center gap-1 hover:text-[var(--color-gold)]">
             <MessageCircle size={15} /> {replies}
           </Link>
-          <button type="button" className="inline-flex items-center gap-1 hover:text-[var(--color-brand)]" onClick={share}>
+          <button type="button" className="inline-flex items-center gap-1 hover:text-[var(--color-gold)]" onClick={share}>
             <Share2 size={15} /> Share
           </button>
         </div>
