@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 96" fill="none">
+  <rect width="240" height="96" rx="10" fill="#102018"/>
+  <rect x="1" y="1" width="238" height="94" rx="9" stroke="#38B982" stroke-opacity=".4"/>
+  <text x="120" y="46" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="#7CFFC4">PG</text>
+  <text x="120" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="600" fill="#A9E6C8" letter-spacing="4">SOFT</text>
+</svg>

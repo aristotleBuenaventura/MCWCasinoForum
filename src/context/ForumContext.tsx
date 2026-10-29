@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createSeedState } from '../data/seed'
+import { ensureCommentBody, ensureThreadBody, firstImageUrl, isBodyEmpty, persistBodyImages, textFromBody } from '../lib/postBody'
 import { uid } from '../lib/utils'
 import type {
   Ad,
@@ -17,14 +18,14 @@ import type {
   ForumCategory,
   ForumState,
   GameProvider,
-  MediaType,
   Notification,
+  PostBody,
   Role,
   Thread,
   User,
 } from '../types'
 
-const STORAGE_KEY = 'mcw-casino-forum-v2'
+const STORAGE_KEY = 'mcw-casino-forum-v4'
 
 type RegisterInput = {
   username: string
@@ -36,9 +37,7 @@ type RegisterInput = {
 type CreateThreadInput = {
   forumId: string
   title: string
-  content: string
-  mediaUrl?: string | null
-  mediaType?: MediaType
+  body: PostBody
 }
 
 type CategoryInput = {
@@ -59,12 +58,12 @@ type ForumContextValue = {
   login: (usernameOrEmail: string, password: string) => { ok: true } | { ok: false; error: string }
   logout: () => void
   updateProfile: (patch: Partial<Pick<User, 'displayName' | 'bio' | 'avatar'>>) => void
-  createThread: (input: CreateThreadInput) => Thread | { error: string }
-  updateThread: (id: string, patch: Partial<Pick<Thread, 'title' | 'content'>>) => void
+  createThread: (input: CreateThreadInput) => Promise<Thread | { error: string }>
+  updateThread: (id: string, patch: Partial<Pick<Thread, 'title' | 'content' | 'body' | 'mediaUrl' | 'mediaType'>>) => void
   deleteThread: (id: string) => void
   togglePin: (id: string) => void
   bumpViews: (id: string) => void
-  addComment: (threadId: string, content: string, parentId?: string | null) => Comment | { error: string }
+  addComment: (threadId: string, body: PostBody, parentId?: string | null) => Promise<Comment | { error: string }>
   deleteComment: (id: string) => void
   toggleLike: (targetType: 'thread' | 'comment', targetId: string) => void
   isLiked: (targetType: 'thread' | 'comment', targetId: string) => boolean
@@ -106,7 +105,13 @@ function loadState(): ForumState {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as ForumState
-      if (parsed?.categories && parsed?.ads && parsed?.trendingGames) return parsed
+      if (parsed?.categories && parsed?.ads && parsed?.trendingGames) {
+        return {
+          ...parsed,
+          threads: parsed.threads.map(ensureThreadBody),
+          comments: parsed.comments.map(ensureCommentBody),
+        }
+      }
     }
   } catch {
     /* ignore */
@@ -156,7 +161,30 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ForumState>(() => loadState())
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    let cancelled = false
+    const persist = async () => {
+      const copy = JSON.parse(JSON.stringify(state)) as ForumState
+      for (const thread of copy.threads) {
+        thread.body = await persistBodyImages(thread.id, thread.body || [])
+        thread.content = textFromBody(thread.body)
+        thread.mediaUrl = firstImageUrl(thread.body)
+        thread.mediaType = thread.mediaUrl ? 'image' : null
+      }
+      for (const comment of copy.comments) {
+        comment.body = await persistBodyImages(comment.id, comment.body || [])
+        comment.content = textFromBody(comment.body)
+      }
+      if (cancelled) return
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(copy))
+      } catch {
+        console.warn('Forum storage is full; latest media may not persist after refresh.')
+      }
+    }
+    void persist()
+    return () => {
+      cancelled = true
+    }
   }, [state])
 
   useEffect(() => {
@@ -262,19 +290,28 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const createThread: ForumContextValue['createThread'] = (input) => {
+  const createThread: ForumContextValue['createThread'] = async (input) => {
     if (!currentUser) return { error: 'Please log in to create a thread.' }
-    if (!input.title.trim() || !input.content.trim()) return { error: 'Title and content are required.' }
+    if (!input.title.trim()) return { error: 'Title is required.' }
+    if (isBodyEmpty(input.body)) return { error: 'Write something or insert an image.' }
+
+    const id = uid('thread')
+    const body = await persistBodyImages(id, input.body)
+    const content = textFromBody(body)
+    const mediaUrl = firstImageUrl(body)
 
     const thread: Thread = {
-      id: uid('thread'),
+      id,
       forumId: input.forumId,
       authorId: currentUser.id,
       title: input.title.trim(),
-      content: input.content.trim(),
-      mediaUrl: input.mediaUrl ?? null,
-      mediaType: input.mediaType ?? null,
+      content,
+      body,
+      mediaUrl,
+      mediaType: mediaUrl ? 'image' : null,
       pinned: false,
+      solved: false,
+      tags: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       views: 0,
@@ -332,16 +369,19 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const addComment: ForumContextValue['addComment'] = (threadId, content, parentId = null) => {
+  const addComment: ForumContextValue['addComment'] = async (threadId, bodyInput, parentId = null) => {
     if (!currentUser) return { error: 'Please log in to comment.' }
-    if (!content.trim()) return { error: 'Comment cannot be empty.' }
+    if (isBodyEmpty(bodyInput)) return { error: 'Write something or insert an image.' }
 
+    const id = uid('comment')
+    const body = await persistBodyImages(id, bodyInput)
     const comment: Comment = {
-      id: uid('comment'),
+      id,
       threadId,
       authorId: currentUser.id,
       parentId,
-      content: content.trim(),
+      content: textFromBody(body),
+      body,
       createdAt: new Date().toISOString(),
     }
 

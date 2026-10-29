@@ -2,6 +2,12 @@ export type Role = 'user' | 'moderator' | 'admin'
 
 export type MediaType = 'image' | 'video' | null
 
+export type PostBlock =
+  | { id: string; type: 'text'; text: string }
+  | { id: string; type: 'image'; url: string }
+
+export type PostBody = PostBlock[]
+
 export type AdSlot = 'left-1' | 'left-2' | 'left-3' | 'right-1'
 
 export interface User {
@@ -35,9 +41,12 @@ export interface Thread {
   authorId: string
   title: string
   content: string
+  body: PostBody
   mediaUrl: string | null
   mediaType: MediaType
   pinned: boolean
+  solved: boolean
+  tags: string[]
   createdAt: string
   updatedAt: string
   views: number
@@ -49,6 +58,7 @@ export interface Comment {
   authorId: string
   parentId: string | null
   content: string
+  body: PostBody
   createdAt: string
 }
 

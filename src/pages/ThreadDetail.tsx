@@ -1,128 +1,61 @@
-import { Flag, Heart, Pin, Share2, Trash2 } from 'lucide-react'
+import { Calendar, Flag, Heart, MessageSquare, Pin, Share2, ThumbsUp, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { PostBodyView } from '../components/PostBodyView'
+import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
-import { timeAgo } from '../lib/utils'
-import type { Comment } from '../types'
+import { ART } from '../data/artwork'
+import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
+import { compactNumber, forumTime } from '../lib/utils'
+import type { PostBody, User } from '../types'
 
-function CommentItem({
-  comment,
-  depth = 0,
-  childrenMap,
-}: {
-  comment: Comment
-  depth?: number
-  childrenMap: Map<string, Comment[]>
-}) {
-  const {
-    getUser,
-    currentUser,
-    isMod,
-    deleteComment,
-    toggleLike,
-    isLiked,
-    likeCount,
-    report,
-    addComment,
-  } = useForum()
-  const toast = useToast()
-  const author = getUser(comment.authorId)
-  const [replyOpen, setReplyOpen] = useState(false)
-  const [reply, setReply] = useState('')
-  const liked = isLiked('comment', comment.id)
-  const likes = likeCount('comment', comment.id)
-  const canDelete = currentUser && (currentUser.id === comment.authorId || isMod)
+const PER_PAGE = 10
 
-  const submitReply = (e: FormEvent) => {
-    e.preventDefault()
-    const res = addComment(comment.threadId, reply, comment.id)
-    if ('error' in res) {
-      toast(res.error)
-      return
-    }
-    setReply('')
-    setReplyOpen(false)
-    toast('Reply posted')
-  }
+function roleLabel(user?: User) {
+  if (!user) return null
+  if (user.role === 'admin') return { text: 'Owner', className: 'bg-[#2a7a73] text-white' }
+  if (user.role === 'moderator') return { text: 'Moderator', className: 'bg-[#b42318] text-white' }
+  return { text: 'Member', className: 'bg-[#3a3f4d] text-[#d5d8e0]' }
+}
+
+function MemberCard({ user }: { user?: User }) {
+  const { state } = useForum()
+  const threads = state.threads.filter((t) => t.authorId === user?.id).length
+  const comments = state.comments.filter((c) => c.authorId === user?.id).length
+  const likes =
+    state.likes.filter((l) => {
+      if (l.targetType === 'thread') return state.threads.some((t) => t.id === l.targetId && t.authorId === user?.id)
+      return state.comments.some((c) => c.id === l.targetId && c.authorId === user?.id)
+    }).length
+  const role = roleLabel(user)
 
   return (
-    <div className={depth ? 'ml-4 md:ml-8 mt-3 border-l border-[var(--color-border)] dark:border-[#2a3542] pl-3' : 'mt-3'}>
-      <div className="forum-card p-3">
-        <div className="flex gap-2">
-          <Avatar user={author} size={32} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm">
-              <Link to={`/profile/${author?.username}`} className="font-semibold hover:text-[var(--color-gold)]">
-                {author?.displayName}
-              </Link>
-              <span className="prose-muted"> · {timeAgo(comment.createdAt)}</span>
-            </div>
-            <p className="mt-1 text-sm whitespace-pre-wrap">{comment.content}</p>
-            <div className="mt-2 flex flex-wrap gap-3 text-xs prose-muted">
-              <button
-                type="button"
-                className={`inline-flex items-center gap-1 ${liked ? 'text-[var(--color-danger)]' : ''}`}
-                onClick={() => {
-                  if (!currentUser) return toast('Log in to like')
-                  toggleLike('comment', comment.id)
-                }}
-              >
-                <Heart size={13} fill={liked ? 'currentColor' : 'none'} /> {likes}
-              </button>
-              <button type="button" onClick={() => setReplyOpen((v) => !v)}>
-                Reply
-              </button>
-              {currentUser && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1"
-                  onClick={() => {
-                    const reason = window.prompt('Why are you reporting this comment?')
-                    if (!reason) return
-                    report('comment', comment.id, reason)
-                    toast('Report submitted')
-                  }}
-                >
-                  <Flag size={13} /> Report
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-[var(--color-danger)]"
-                  onClick={() => {
-                    if (window.confirm('Delete this comment?')) {
-                      deleteComment(comment.id)
-                      toast('Comment deleted')
-                    }
-                  }}
-                >
-                  <Trash2 size={13} /> Delete
-                </button>
-              )}
-            </div>
-            {replyOpen && currentUser && (
-              <form onSubmit={submitReply} className="mt-2 space-y-2">
-                <textarea className="input min-h-20" value={reply} onChange={(e) => setReply(e.target.value)} required />
-                <button type="submit" className="btn btn-primary text-sm">
-                  Post reply
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
+    <aside className="xf-member">
+      <Link to={`/profile/${user?.username}`} className="inline-block">
+        <Avatar user={user} size={72} />
+      </Link>
+      <Link to={`/profile/${user?.username}`} className="block mt-2 text-[13px] font-semibold gold-text hover:underline">
+        {user?.displayName}
+      </Link>
+      <div className="mt-1">
+        {role && <span className={`role-pill ${role.className}`}>{role.text}</span>}
+        {user?.role !== 'user' && <span className="role-pill bg-[#1d6f9b] text-white">Staff member</span>}
       </div>
-      {(childrenMap.get(comment.id) ?? []).map((child) => (
-        <CommentItem key={child.id} comment={child} depth={depth + 1} childrenMap={childrenMap} />
-      ))}
-    </div>
+      <dl className="mt-3 text-[11px] prose-muted space-y-1 text-left">
+        <div className="flex items-center gap-1.5"><Calendar size={11} /> {user ? forumTime(user.createdAt) : '—'}</div>
+        <div className="flex items-center gap-1.5"><MessageSquare size={11} /> {compactNumber(threads + comments)}</div>
+        <div className="flex items-center gap-1.5"><Heart size={11} /> {compactNumber(likes)}</div>
+      </dl>
+    </aside>
   )
 }
 
 export function ThreadDetail() {
   const { id } = useParams()
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(1, Number(params.get('page') || 1))
   const navigate = useNavigate()
   const toast = useToast()
   const {
@@ -132,6 +65,7 @@ export function ThreadDetail() {
     isMod,
     addComment,
     deleteThread,
+    deleteComment,
     toggleLike,
     isLiked,
     likeCount,
@@ -144,7 +78,8 @@ export function ThreadDetail() {
   const thread = state.threads.find((t) => t.id === id)
   const author = thread ? getUser(thread.authorId) : undefined
   const forum = thread ? state.categories.find((c) => c.id === thread.forumId) : undefined
-  const [content, setContent] = useState('')
+  const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -154,30 +89,36 @@ export function ThreadDetail() {
     bumpViews(id)
   }, [id, bumpViews])
 
-  const { roots, childrenMap } = useMemo(() => {
-    const comments = state.comments.filter((c) => c.threadId === id)
-    const map = new Map<string, Comment[]>()
-    const roots: Comment[] = []
-    for (const c of comments) {
-      if (!c.parentId) roots.push(c)
-      else {
-        const list = map.get(c.parentId) ?? []
-        list.push(c)
-        map.set(c.parentId, list)
-      }
-    }
-    roots.sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt))
-    for (const [, list] of map) list.sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt))
-    return { roots, childrenMap: map }
-  }, [state.comments, id])
+  const posts = useMemo(() => {
+    const comments = state.comments
+      .filter((c) => c.threadId === id)
+      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt))
+    return [
+      {
+        kind: 'op' as const,
+        createdAt: thread?.createdAt || '',
+        authorId: thread?.authorId || '',
+        body: thread ? ensureThreadBody(thread).body : emptyBody(),
+        id: thread?.id || '',
+      },
+      ...comments.map((c) => ({
+        kind: 'reply' as const,
+        createdAt: c.createdAt,
+        authorId: c.authorId,
+        body: ensureCommentBody(c).body,
+        id: c.id,
+      })),
+    ]
+  }, [state.comments, id, thread])
+
+  const pageCount = Math.max(1, Math.ceil(posts.length / PER_PAGE))
+  const pageItems = posts.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   if (!thread) {
     return (
-      <div className="forum-card p-6 text-center">
+      <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
         <p>Thread not found.</p>
-        <Link to="/" className="btn btn-primary mt-3 inline-flex">
-          Back home
-        </Link>
+        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">Back to communities</Link>
       </div>
     )
   }
@@ -186,156 +127,193 @@ export function ThreadDetail() {
   const likes = likeCount('thread', thread.id)
   const canDelete = currentUser && (currentUser.id === thread.authorId || isMod)
 
-  const onComment = (e: FormEvent) => {
+  const onComment = async (e: FormEvent) => {
     e.preventDefault()
-    const res = addComment(thread.id, content)
+    if (uploading) return
+    const res = await addComment(thread.id, replyBody)
     if ('error' in res) {
       toast(res.error)
       return
     }
-    setContent('')
-    toast('Comment posted')
+    setReplyBody(emptyBody())
+    toast('Reply posted')
   }
 
   const share = async () => {
-    const url = window.location.href
     try {
-      await navigator.clipboard.writeText(url)
+      await navigator.clipboard.writeText(window.location.href)
       toast('Link copied')
     } catch {
-      toast(url)
+      toast(window.location.href)
     }
   }
 
+  const goPage = (n: number) => setParams(n <= 1 ? {} : { page: String(n) })
+
   return (
-    <div className="space-y-4">
-      <div className="text-sm prose-muted">
-        <Link to="/communities" className="text-[var(--color-gold)] hover:underline">
-          Communities
-        </Link>
+    <div className="max-w-[1100px] mx-auto space-y-3">
+      <div className="text-[12px] prose-muted">
+        <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
         {forum && (
           <>
             {' / '}
-            <Link to={`/communities/${forum.slug}`} className="text-[var(--color-gold)] hover:underline">
-              {forum.name}
-            </Link>
+            <Link to={`/communities/${forum.slug}`} className="gold-text hover:underline">{forum.name}</Link>
           </>
         )}
       </div>
 
-      <article className="forum-card p-5">
-        <div className="flex gap-3">
-          <Avatar user={author} size={48} />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              {thread.pinned && <Pin size={18} className="text-[var(--color-gold)]" />}
-              {thread.title}
-            </h1>
-            <div className="text-sm prose-muted mt-1">
-              <Link to={`/profile/${author?.username}`} className="text-[var(--color-gold)] hover:underline">
-                {author?.displayName}
-              </Link>
-              {' · '}
-              {timeAgo(thread.createdAt)}
-            </div>
-            <p className="mt-4 whitespace-pre-wrap">{thread.content}</p>
-            {thread.mediaUrl && thread.mediaType === 'image' && (
-              <img src={thread.mediaUrl} alt="" className="mt-4 max-h-96 rounded border border-[var(--color-border)]" />
-            )}
-            {thread.mediaUrl && thread.mediaType === 'video' && (
-              <video src={thread.mediaUrl} controls className="mt-4 w-full max-h-96 rounded border border-[var(--color-border)]" />
-            )}
-            <div className="mt-4 flex flex-wrap gap-3 text-sm">
-              <button
-                type="button"
-                className={`btn btn-secondary ${liked ? 'text-[var(--color-danger)]' : ''}`}
-                onClick={() => {
-                  if (!currentUser) return toast('Log in to like')
-                  toggleLike('thread', thread.id)
-                }}
-              >
-                <Heart size={16} fill={liked ? 'currentColor' : 'none'} /> {likes}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={share}>
-                <Share2 size={16} /> Share
-              </button>
-              {currentUser && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    const reason = window.prompt('Why are you reporting this thread?')
-                    if (!reason) return
-                    report('thread', thread.id, reason)
-                    toast('Report submitted')
-                  }}
-                >
-                  <Flag size={16} /> Report
-                </button>
-              )}
-              {isMod && (
-                <button type="button" className="btn btn-secondary" onClick={() => togglePin(thread.id)}>
-                  <Pin size={16} /> {thread.pinned ? 'Unpin' : 'Pin'}
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => {
-                    if (!window.confirm('Delete this thread?')) return
-                    deleteThread(thread.id)
-                    toast('Thread deleted')
-                    navigate('/')
-                  }}
-                >
-                  <Trash2 size={16} /> Delete
-                </button>
-              )}
-              {isMod && author && author.role === 'user' && (
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => {
-                    if (!window.confirm(`Remove user @${author.username}?`)) return
-                    banUser(author.id, true)
-                    toast('User removed')
-                  }}
-                >
-                  Remove user
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <section>
-        <h2 className="font-semibold text-lg mb-2">{roots.length} comments</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h1 className="text-[18px] font-semibold gold-text leading-snug max-w-3xl">
+          {thread.pinned && <Pin size={16} className="inline mr-1 -mt-0.5" />}
+          {thread.title}
+        </h1>
         {currentUser ? (
-          <form onSubmit={onComment} className="forum-card p-4 space-y-2 mb-3">
-            <textarea
-              className="input min-h-24"
-              placeholder="Write a comment..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              required
+          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-accent h-8 text-[12px]">Post thread</Link>
+        ) : (
+          <Link to="/login" className="btn btn-secondary h-8 text-[12px]">Log in to post</Link>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-[12px] prose-muted">
+        <Link to={`/profile/${author?.username}`} className="gold-text font-semibold hover:underline">
+          {author?.displayName}
+        </Link>
+        <span>{forumTime(thread.createdAt)}</span>
+        {thread.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+      </div>
+
+      {pageCount > 1 && (
+        <nav className="pager">
+          {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+            <button key={n} type="button" className={n === page ? 'is-active' : ''} onClick={() => goPage(n)}>{n}</button>
+          ))}
+          {page < pageCount && (
+            <button type="button" onClick={() => goPage(page + 1)}>Next</button>
+          )}
+        </nav>
+      )}
+
+      {pageItems.map((post, index) => {
+        const number = (page - 1) * PER_PAGE + index + 1
+        const user = getUser(post.authorId)
+        const isOp = post.kind === 'op'
+        const likedPost = isOp ? liked : isLiked('comment', post.id)
+        const likeN = isOp ? likes : likeCount('comment', post.id)
+        return (
+          <article key={post.id} className="xf-post">
+            <MemberCard user={user} />
+            <div className="xf-body">
+              <div className="flex items-center justify-between gap-2 text-[12px] prose-muted border-b border-[#2c2618] pb-2 mb-3">
+                <span>{forumTime(post.createdAt)}</span>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={share} className="hover:text-[var(--color-gold)] inline-flex items-center gap-1">
+                    <Share2 size={12} /> Share
+                  </button>
+                  <span>#{number}</span>
+                </div>
+              </div>
+              <PostBodyView body={post.body} />
+              {isOp && number === 1 && (
+                <a href="https://example.com/advertise" target="_blank" rel="noreferrer" className="block mt-4">
+                  <img src={ART.bannerExclusive} alt="Advertisement" className="w-full max-h-28 object-cover border border-[#2c2618]" />
+                </a>
+              )}
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] prose-muted">
+                <button
+                  type="button"
+                  className={`inline-flex items-center gap-1 ${likedPost ? 'text-[var(--color-gold)]' : ''}`}
+                  onClick={() => {
+                    if (!currentUser) return toast('Log in to like')
+                    toggleLike(isOp ? 'thread' : 'comment', post.id)
+                  }}
+                >
+                  <ThumbsUp size={13} /> {likeN}
+                </button>
+                {currentUser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reason = window.prompt('Why are you reporting this?')
+                      if (!reason) return
+                      report(isOp ? 'thread' : 'comment', post.id, reason)
+                      toast('Report submitted')
+                    }}
+                  >
+                    <Flag size={13} className="inline mr-1" /> Report
+                  </button>
+                )}
+                {isOp && isMod && (
+                  <button type="button" onClick={() => togglePin(thread.id)}>
+                    <Pin size={13} className="inline mr-1" /> {thread.pinned ? 'Unpin' : 'Pin'}
+                  </button>
+                )}
+                {isOp && canDelete && (
+                  <button
+                    type="button"
+                    className="text-[var(--color-danger)]"
+                    onClick={() => {
+                      if (!window.confirm('Delete this thread?')) return
+                      deleteThread(thread.id)
+                      toast('Thread deleted')
+                      navigate(forum ? `/communities/${forum.slug}` : '/communities')
+                    }}
+                  >
+                    <Trash2 size={13} className="inline mr-1" /> Delete
+                  </button>
+                )}
+                {!isOp && currentUser && (currentUser.id === post.authorId || isMod) && (
+                  <button
+                    type="button"
+                    className="text-[var(--color-danger)]"
+                    onClick={() => {
+                      if (!window.confirm('Delete this reply?')) return
+                      deleteComment(post.id)
+                      toast('Reply deleted')
+                    }}
+                  >
+                    <Trash2 size={13} className="inline mr-1" /> Delete
+                  </button>
+                )}
+                {isOp && isMod && author && author.role === 'user' && (
+                  <button
+                    type="button"
+                    className="text-[var(--color-danger)]"
+                    onClick={() => {
+                      if (!window.confirm(`Remove user @${author.username}?`)) return
+                      banUser(author.id, true)
+                      toast('User removed')
+                    }}
+                  >
+                    Remove user
+                  </button>
+                )}
+              </div>
+            </div>
+          </article>
+        )
+      })}
+
+      <section className="xf-form">
+        <div className="xf-form-head">Reply to thread</div>
+        {currentUser ? (
+          <form onSubmit={onComment}>
+            <PostComposer
+              value={replyBody}
+              onChange={setReplyBody}
+              onBusyChange={setUploading}
+              placeholder="Write your reply..."
             />
-            <button type="submit" className="btn btn-primary">
-              Post comment
-            </button>
+            <div className="xf-form-actions">
+              <button type="submit" className="btn-post" disabled={uploading}>
+                {uploading ? 'Uploading…' : 'Post reply'}
+              </button>
+            </div>
           </form>
         ) : (
-          <div className="forum-card p-4 mb-3 text-sm prose-muted">
-            <Link to="/login" className="text-[var(--color-gold)] hover:underline">
-              Log in
-            </Link>{' '}
-            to comment.
-          </div>
+          <p className="text-[12px] prose-muted px-3 py-3">
+            <Link to="/login" className="gold-text hover:underline">Log in</Link> to reply.
+          </p>
         )}
-        {roots.map((c) => (
-          <CommentItem key={c.id} comment={c} childrenMap={childrenMap} />
-        ))}
       </section>
     </div>
   )

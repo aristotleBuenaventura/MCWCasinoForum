@@ -24,10 +24,12 @@ export default function App() {
             <Route element={<Layout rails="both" />}>
               <Route index element={<Home />} />
             </Route>
-            <Route element={<Layout rails="left" />}>
+            <Route element={<Layout rails="none" />}>
               <Route path="communities" element={<Communities />} />
               <Route path="communities/:slug" element={<CommunityDetail />} />
               <Route path="thread/:id" element={<ThreadDetail />} />
+            </Route>
+            <Route element={<Layout rails="left" />}>
               <Route path="members" element={<Members />} />
               <Route path="profile/:username" element={<Profile />} />
               <Route path="search" element={<Search />} />

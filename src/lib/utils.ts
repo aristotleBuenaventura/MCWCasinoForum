@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from 'date-fns'
+import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns'
 
 export function uid(prefix = 'id') {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`
@@ -31,6 +31,21 @@ export async function fileToDataUrl(file: File, maxBytes = 4_500_000): Promise<s
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsDataURL(file)
   })
+}
+
+export function compactNumber(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}K`
+  return String(n)
+}
+
+export function forumTime(date: string) {
+  const d = new Date(date)
+  if (Number.isNaN(+d)) return date
+  if (Date.now() - +d < 60 * 60 * 1000) return formatDistanceToNow(d, { addSuffix: true })
+  if (isToday(d)) return `Today at ${format(d, 'h:mm a')}`
+  if (isYesterday(d)) return `Yesterday at ${format(d, 'h:mm a')}`
+  return format(d, 'MMM d, yyyy')
 }
 
 export function avatarColor(seed: string) {

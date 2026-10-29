@@ -2,24 +2,34 @@ import { Link } from 'react-router-dom'
 
 export function Footer() {
   return (
-    <footer className="mt-10 border-t border-[var(--color-border)] bg-[#0b0d14]">
-      <div className="max-w-[1440px] mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-5 gap-8 text-sm">
-        <div className="lg:col-span-1">
-          <div className="font-bold gold-text text-lg">MCW FORUM</div>
-          <p className="prose-muted mt-2 text-xs leading-relaxed">
-            The ultimate hub for casino players. Discuss, review, and share strategies.
-          </p>
+    <footer className="site-footer mt-8">
+      <div className="max-w-[1360px] mx-auto px-4 py-8 grid sm:grid-cols-2 lg:grid-cols-6 gap-6 text-[13px]">
+        <div className="lg:col-span-2">
+          <div className="flex items-center gap-2">
+            <img src="/assets/hero-crest.jpg" alt="" className="h-8 w-8 rounded object-cover" />
+            <div>
+              <div className="font-extrabold gold-text tracking-wide">MCW FORUM</div>
+              <div className="text-[11px] prose-muted">The ultimate hub for casino players.</div>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-3 text-[11px] prose-muted">
+            <span>Facebook</span>
+            <span>X</span>
+            <span>Instagram</span>
+            <span>YouTube</span>
+          </div>
         </div>
         <div>
-          <div className="section-title mb-3">About Us</div>
+          <div className="section-title mb-2">About Us</div>
           <div className="space-y-1.5 prose-muted">
             <div>Company</div>
             <div>Press</div>
             <Link to="/communities/guides" className="block hover:text-[var(--color-gold)]">Guides</Link>
+            <div>Blog</div>
           </div>
         </div>
         <div>
-          <div className="section-title mb-3">Explore</div>
+          <div className="section-title mb-2">Explore</div>
           <div className="space-y-1.5 prose-muted">
             <Link to="/communities" className="block hover:text-[var(--color-gold)]">Communities</Link>
             <Link to="/communities/slot-games" className="block hover:text-[var(--color-gold)]">Games</Link>
@@ -28,7 +38,7 @@ export function Footer() {
           </div>
         </div>
         <div>
-          <div className="section-title mb-3">Support</div>
+          <div className="section-title mb-2">Support</div>
           <div className="space-y-1.5 prose-muted">
             <div>FAQ</div>
             <div>Contact Us</div>
@@ -36,7 +46,7 @@ export function Footer() {
           </div>
         </div>
         <div>
-          <div className="section-title mb-3">Legal</div>
+          <div className="section-title mb-2">Legal</div>
           <div className="space-y-1.5 prose-muted">
             <div>Terms of Service</div>
             <div>Privacy Policy</div>
@@ -45,8 +55,9 @@ export function Footer() {
           </div>
         </div>
       </div>
-      <div className="max-w-[1440px] mx-auto px-4 pb-6 text-xs prose-muted">
-        © {new Date().getFullYear()} MCW FORUM. All rights reserved.
+      <div className="max-w-[1360px] mx-auto px-4 pb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] prose-muted">
+        <span>© {new Date().getFullYear()} MCW FORUM. All rights reserved.</span>
+        <span>Responsible Gambling · Please play responsibly.</span>
       </div>
     </footer>
   )

@@ -1,4 +1,6 @@
+import { ART } from './artwork'
 import type { Ad, CmsItem, ForumCategory, ForumState, GameProvider, Thread } from '../types'
+import { ensureCommentBody, legacyBody, textFromBody } from '../lib/postBody'
 import { uid } from '../lib/utils'
 
 const now = Date.now()
@@ -31,15 +33,20 @@ function thread(
   created: number,
   extra?: Partial<Thread>,
 ): Thread {
+  const mediaUrl = extra?.mediaUrl ?? null
+  const body = extra?.body ?? legacyBody(content, mediaUrl)
   return {
     id,
     forumId,
     authorId,
     title,
-    content,
-    mediaUrl: extra?.mediaUrl ?? null,
-    mediaType: extra?.mediaType ?? null,
+    content: textFromBody(body) || content,
+    body,
+    mediaUrl: mediaUrl,
+    mediaType: extra?.mediaType ?? (mediaUrl ? 'image' : null),
     pinned: extra?.pinned ?? false,
+    solved: extra?.solved ?? false,
+    tags: extra?.tags ?? [],
     createdAt: days(created),
     updatedAt: days(created),
     views: extra?.views ?? Math.floor(40 + Math.random() * 200),
@@ -141,7 +148,7 @@ export function createSeedState(): ForumState {
       'Reviewed my cashout experience at CasinoX — verified withdrawal in 4 hours.',
       'Submitted KYC once, then the payout hit in about four hours. Sharing the full timeline so others know what to expect.',
       0.8,
-      { views: 188 },
+      { views: 188, solved: true, tags: ['Fast Withdrawals'], mediaUrl: ART.casinoRoyale, mediaType: 'image' },
     ),
     thread(
       'thread_olympus',
@@ -150,7 +157,7 @@ export function createSeedState(): ForumState {
       'Best strategy for Gates of Olympus?',
       'Do you play base game only or bonus buy when the balance allows? Drop your sample sizes.',
       1.2,
-      { views: 245 },
+      { views: 245, mediaUrl: ART.olympus, mediaType: 'image' },
     ),
     thread(
       'thread_spin_palace',
@@ -159,7 +166,7 @@ export function createSeedState(): ForumState {
       'Spin Palace review — 4.8/5 after two months',
       'Fast cashouts, decent table limits, and a usable VIP path. Biggest knock is the wagering on some reloads.',
       2,
-      { views: 410 },
+      { views: 410, tags: ['Fast Withdrawals', 'Big Bonuses'], mediaUrl: ART.spinPalace, mediaType: 'image' },
     ),
     thread(
       'thread_casino_royale',
@@ -168,7 +175,7 @@ export function createSeedState(): ForumState {
       'Casino Royale review — 4.8/5 for live tables',
       'Live blackjack was the reason I stayed. Slots catalog is average but support was solid.',
       2.4,
-      { views: 276 },
+      { views: 276, tags: ['Live Tables', 'Big Bonuses'], mediaUrl: ART.casinoRoyale, mediaType: 'image' },
     ),
     thread(
       'thread_mega_jackpot',
@@ -177,7 +184,7 @@ export function createSeedState(): ForumState {
       'Mega Jackpot review — 4.8/5 if you chase progressives',
       'Network jackpots are the draw. I treat it as entertainment spend, not a plan.',
       3,
-      { views: 198 },
+      { views: 198, tags: ['Best Players'], mediaUrl: ART.megaJackpot, mediaType: 'image' },
     ),
     thread(
       'thread_rtp_guide',
@@ -186,7 +193,7 @@ export function createSeedState(): ForumState {
       'How to Calculate RTP & Volatility',
       'A practical walkthrough of published RTP vs session variance, and how to read volatility labels.',
       5,
-      { views: 520 },
+      { views: 520, mediaUrl: ART.guideRtp, mediaType: 'image' },
     ),
     thread(
       'thread_wagering',
@@ -195,7 +202,7 @@ export function createSeedState(): ForumState {
       'Casino Bonuses: What Are Wagering Requirements?',
       'Playthrough, game weighting, max bet rules — the three things that decide if a bonus is worth it.',
       6,
-      { views: 388 },
+      { views: 388, mediaUrl: ART.guideWager, mediaType: 'image' },
     ),
     thread(
       'thread_bankroll',
@@ -204,7 +211,7 @@ export function createSeedState(): ForumState {
       'Responsible Bankroll Management',
       'Set a session cap, a monthly cap, and a stop-loss before you load the wallet.',
       7,
-      { views: 301 },
+      { views: 301, mediaUrl: ART.guideBankroll, mediaType: 'image' },
     ),
     thread(
       'thread_bonus_welcome',
@@ -231,7 +238,7 @@ export function createSeedState(): ForumState {
       'Gates of Olympus — 2,546x MAX WIN',
       'Screenshot attached from last night’s session. Not advice, just the hit.',
       0.2,
-      { views: 640 },
+      { views: 640, mediaUrl: ART.olympus, mediaType: 'image' },
     ),
     thread(
       'thread_win_mahjong',
@@ -240,7 +247,7 @@ export function createSeedState(): ForumState {
       'Mahjong Ways — Hit 56x Bold Multiplier',
       'Stacked symbols finally lined up. Sharing the setup I used.',
       0.6,
-      { views: 233 },
+      { views: 233, mediaUrl: ART.mahjong, mediaType: 'image' },
     ),
     thread(
       'thread_win_ace',
@@ -249,7 +256,7 @@ export function createSeedState(): ForumState {
       'Super Ace — Wild Jacket hit',
       'Short session, lucky timing. Always cash a piece back to the bank.',
       1.1,
-      { views: 154 },
+      { views: 154, mediaUrl: ART.superAce, mediaType: 'image' },
     ),
     thread(
       'thread_rules',
@@ -259,6 +266,42 @@ export function createSeedState(): ForumState {
       'Be respectful. No spam. No scams. Use Report on posts. Moderators review quickly.',
       20,
       { pinned: true, views: 890 },
+    ),
+    thread(
+      'thread_slots_read',
+      'cat_slots',
+      modId,
+      'Start here before posting slot results',
+      'Include game name, stake, session length, and whether it was a bonus buy. Screenshots help.',
+      12,
+      { pinned: true, views: 640 },
+    ),
+    thread(
+      'thread_providers_read',
+      'cat_providers',
+      adminId,
+      'How we tag provider discussions',
+      'Keep studio-specific questions in the matching sub-forum so players can find them later.',
+      14,
+      { pinned: true, views: 410 },
+    ),
+    thread(
+      'thread_slots_dry',
+      'cat_slots',
+      bobId,
+      'Anyone else hitting a long dry spell on medium volatility?',
+      'Three sessions, no bonus. Checking if it is just variance or a week of dead games.',
+      0.2,
+      { views: 88 },
+    ),
+    thread(
+      'thread_reviews_kyc',
+      'cat_reviews',
+      caraId,
+      'KYC timelines this month — who got approved fast?',
+      'Collecting recent KYC times so new players know what to expect.',
+      0.9,
+      { views: 121 },
     ),
   ]
 
@@ -303,7 +346,28 @@ export function createSeedState(): ForumState {
       content: 'Insane multiplier. Congrats.',
       createdAt: days(0.1),
     },
-  ]
+    ...Array.from({ length: 12 }, (_, i) => ({
+      id: `comment_mahjong_${i + 1}`,
+      threadId: 'thread_mahjong',
+      authorId: [aliceId, bobId, caraId, modId, adminId][i % 5],
+      parentId: null,
+      content: [
+        'Stake size matters more than people admit on Mahjong Ways.',
+        'I keep a session cap and walk if the first two bonuses miss.',
+        'Bonus frequency felt better after dropping one chip size.',
+        'Screenshots help a lot when comparing RTP talk.',
+        'This is still variance. Do not chase the last dry hour.',
+        'PG Soft titles swing hard even when the posted RTP looks fine.',
+        'I only bonus-buy when I am already up for the night.',
+        'Appreciate the pin on this — useful for new players.',
+        'Has anyone compared this to Wild Bandito this month?',
+        'The base game was dead for me until the stacked symbols hit.',
+        'Keep the discussion in the PG Soft sub-forum so it stays findable.',
+        'Thanks for posting the bet notes. Bookmarking this thread.',
+      ][i],
+      createdAt: days(0.14 - i * 0.008),
+    })),
+  ].map(ensureCommentBody)
 
   const likes = [
     { id: uid('like'), userId: bobId, targetType: 'thread' as const, targetId: 'thread_mahjong' },
@@ -312,6 +376,11 @@ export function createSeedState(): ForumState {
     { id: uid('like'), userId: bobId, targetType: 'thread' as const, targetId: 'thread_win_olympus' },
     { id: uid('like'), userId: caraId, targetType: 'thread' as const, targetId: 'thread_win_olympus' },
     { id: uid('like'), userId: aliceId, targetType: 'comment' as const, targetId: 'comment_1' },
+    { id: uid('like'), userId: aliceId, targetType: 'thread' as const, targetId: 'thread_olympus' },
+    { id: uid('like'), userId: bobId, targetType: 'thread' as const, targetId: 'thread_olympus' },
+    { id: uid('like'), userId: caraId, targetType: 'thread' as const, targetId: 'thread_olympus' },
+    { id: uid('like'), userId: modId, targetType: 'thread' as const, targetId: 'thread_olympus' },
+    { id: uid('like'), userId: adminId, targetType: 'thread' as const, targetId: 'thread_olympus' },
   ]
 
   const follows = [
@@ -342,23 +411,22 @@ export function createSeedState(): ForumState {
   ]
 
   const ads: Ad[] = [
-    { id: 'ad_l1a', slot: 'left-1', imageUrl: '', url: 'https://example.com/pragmatic', title: 'Pragmatic Play challenge', order: 1 },
-    { id: 'ad_l1b', slot: 'left-1', imageUrl: '', url: 'https://example.com/jili', title: 'JILI weekly race', order: 2 },
-    { id: 'ad_l2', slot: 'left-2', imageUrl: '', url: 'https://example.com/offer', title: 'Recommended online casinos', order: 1 },
-    { id: 'ad_l3', slot: 'left-3', imageUrl: '', url: 'https://example.com/welcome', title: '100% welcome bonus', order: 1 },
-    { id: 'ad_r1', slot: 'right-1', imageUrl: '', url: 'https://example.com/promos', title: 'Exclusive bonuses & promos', order: 1 },
+    { id: 'ad_l1a', slot: 'left-1', imageUrl: ART.bannerPragmatic, url: 'https://example.com/pragmatic', title: 'Pragmatic Play challenge', order: 1 },
+    { id: 'ad_l2', slot: 'left-2', imageUrl: ART.bannerRecommended, url: 'https://example.com/offer', title: 'Recommended online casinos', order: 1 },
+    { id: 'ad_l3', slot: 'left-3', imageUrl: ART.bannerWelcome, url: 'https://example.com/welcome', title: '100% welcome bonus', order: 1 },
+    { id: 'ad_r1', slot: 'right-1', imageUrl: ART.bannerExclusive, url: 'https://example.com/promos', title: 'Exclusive bonuses & promos', order: 1 },
   ]
 
   const trendingGames: CmsItem[] = [
-    { id: 'tg_1', title: 'Gates of Olympus', subtitle: 'Pragmatic Play', imageUrl: '', url: '/communities/pragmatic-play', order: 1 },
-    { id: 'tg_2', title: 'Mahjong Ways', subtitle: 'PG Soft', imageUrl: '', url: '/communities/pg-soft', order: 2 },
-    { id: 'tg_3', title: 'Super Ace', subtitle: 'JILI', imageUrl: '', url: '/communities/jili', order: 3 },
+    { id: 'tg_1', title: 'Gates of Olympus', subtitle: 'Pragmatic Play', imageUrl: ART.olympus, url: '/communities/pragmatic-play', order: 1 },
+    { id: 'tg_2', title: 'Mahjong Ways', subtitle: 'PG Soft', imageUrl: ART.mahjong, url: '/communities/pg-soft', order: 2 },
+    { id: 'tg_3', title: 'Super Ace', subtitle: 'JILI', imageUrl: ART.superAce, url: '/communities/jili', order: 3 },
   ]
 
   const providers: GameProvider[] = [
-    { id: 'prov_pg', name: 'PG Soft', imageUrl: '', url: '/communities/pg-soft', rating: 4.8, order: 1 },
-    { id: 'prov_jili', name: 'JILI Games', imageUrl: '', url: '/communities/jili', rating: 4.6, order: 2 },
-    { id: 'prov_pp', name: 'Pragmatic Play', imageUrl: '', url: '/communities/pragmatic-play', rating: 4.7, order: 3 },
+    { id: 'prov_pg', name: 'PG Soft', imageUrl: ART.logoPg, url: '/communities/pg-soft', rating: 4.8, order: 1 },
+    { id: 'prov_jili', name: 'JILI Games', imageUrl: ART.logoJili, url: '/communities/jili', rating: 4.6, order: 2 },
+    { id: 'prov_pp', name: 'Pragmatic Play', imageUrl: ART.logoPragmatic, url: '/communities/pragmatic-play', rating: 4.7, order: 3 },
   ]
 
   const withCounts = categories.map((c) => {

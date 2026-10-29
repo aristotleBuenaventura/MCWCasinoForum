@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160" fill="none">
+  <rect width="320" height="160" fill="#141C2E"/>
+  <circle cx="84" cy="88" r="28" fill="#D7AE55"/>
+  <circle cx="84" cy="88" r="18" fill="#8A6A28"/>
+  <circle cx="124" cy="72" r="22" fill="#F0CF79"/>
+  <text x="160" y="90" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#E8EAF0">BONUS</text>
+</svg>

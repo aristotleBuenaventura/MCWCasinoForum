@@ -1,9 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { MediaUpload } from '../components/MediaUpload'
+import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
-import type { MediaType } from '../types'
+import { emptyBody } from '../lib/postBody'
 
 export function CreateThread() {
   const { currentUser, state, createThread, leafCategories } = useForum()
@@ -21,26 +21,35 @@ export function CreateThread() {
 
   const [forumId, setForumId] = useState(defaultForum)
   const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
-  const [mediaType, setMediaType] = useState<MediaType>(null)
+  const [body, setBody] = useState(emptyBody)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+
+  const requestedCat = state.categories.find((c) => c.id === requested)
 
   if (!currentUser) {
     return (
-      <div className="forum-card p-6 text-center max-w-lg mx-auto">
-        <p className="prose-muted">You need an account to create a thread.</p>
-        <div className="mt-3 flex justify-center gap-2">
-          <Link to="/login" className="btn btn-secondary">Log in</Link>
-          <Link to="/register" className="btn btn-primary">Sign up</Link>
+      <div className="max-w-[1100px] mx-auto">
+        <div className="text-[12px] prose-muted mb-2">
+          <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
+          {' / '}
+          Post thread
+        </div>
+        <div className="xf-gate mx-auto">
+          <p className="prose-muted">You need an account to create a thread.</p>
+          <div className="mt-3 flex justify-center gap-2">
+            <Link to="/login" className="btn-post">Log in</Link>
+            <Link to="/register" className="btn btn-secondary" style={{ borderRadius: 3, height: 28, fontSize: 12 }}>Sign up</Link>
+          </div>
         </div>
       </div>
     )
   }
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const res = createThread({ forumId, title, content, mediaUrl, mediaType })
+    if (uploading) return
+    const res = await createThread({ forumId, title, body })
     if ('error' in res) {
       setError(res.error)
       return
@@ -57,37 +66,57 @@ export function CreateThread() {
   }
 
   return (
-    <div className="forum-card p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold">Create thread</h1>
-      <form onSubmit={onSubmit} className="mt-4 space-y-3">
-        <div>
-          <label className="text-sm font-medium">Community</label>
-          <select className="input mt-1" value={forumId} onChange={(e) => setForumId(e.target.value)}>
-            {leafCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {labelFor(c.id)}
-              </option>
-            ))}
-          </select>
+    <div className="max-w-[1100px] mx-auto xf-form-page">
+      <div className="text-[12px] prose-muted mb-2">
+        <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
+        {requestedCat && (
+          <>
+            {' / '}
+            <Link to={`/communities/${requestedCat.slug}`} className="gold-text hover:underline">{requestedCat.name}</Link>
+          </>
+        )}
+        {' / '}
+        Post thread
+      </div>
+      <h1 className="text-[16px] font-semibold gold-text mb-2">Post thread</h1>
+      <form onSubmit={onSubmit} className="xf-form">
+        <div className="xf-form-row">
+          <label htmlFor="thread-forum">Forum</label>
+          <div>
+            <select id="thread-forum" className="input" value={forumId} onChange={(e) => setForumId(e.target.value)}>
+              {leafCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {labelFor(c.id)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div>
-          <label className="text-sm font-medium">Title</label>
-          <input className="input mt-1" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} required />
+        <div className="xf-form-row">
+          <label htmlFor="thread-title">Title</label>
+          <div>
+            <input
+              id="thread-title"
+              className="input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={140}
+              required
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-sm font-medium">Content</label>
-          <textarea className="input mt-1 min-h-36" value={content} onChange={(e) => setContent(e.target.value)} required />
-        </div>
-        <MediaUpload
-          mediaUrl={mediaUrl}
-          mediaType={mediaType}
-          onChange={(url, type) => {
-            setMediaUrl(url)
-            setMediaType(type)
-          }}
+        <PostComposer
+          value={body}
+          onChange={setBody}
+          onBusyChange={setUploading}
+          placeholder="Write your message..."
         />
-        {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
-        <button type="submit" className="btn btn-primary">Post thread</button>
+        {error && <p className="text-[12px] text-[var(--color-danger)] px-3 py-2">{error}</p>}
+        <div className="xf-form-actions">
+          <button type="submit" className="btn-post" disabled={uploading}>
+            {uploading ? 'Uploading…' : 'Post thread'}
+          </button>
+        </div>
       </form>
     </div>
   )

@@ -4,6 +4,7 @@ import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
 import type { Thread } from '../types'
 import { Avatar } from './Avatar'
+import { ForumMedia } from './ForumMedia'
 import { useToast } from './Toast'
 
 export function ThreadCard({ thread }: { thread: Thread }) {
@@ -41,12 +42,12 @@ export function ThreadCard({ thread }: { thread: Thread }) {
           </h3>
           <p className="mt-1 text-sm line-clamp-2 prose-muted">{thread.content}</p>
         </Link>
-        {thread.mediaUrl && thread.mediaType === 'image' && (
+        {thread.mediaUrl && (
           <Link to={`/thread/${thread.id}`}>
-            <img
-              src={thread.mediaUrl}
-              alt=""
-              className="mt-2 max-h-48 rounded border border-[var(--color-border)] object-cover"
+            <ForumMedia
+              url={thread.mediaUrl}
+              type={thread.mediaType}
+              className="mt-2 max-h-48 max-w-full rounded border border-[var(--color-border)] object-cover"
             />
           </Link>
         )}

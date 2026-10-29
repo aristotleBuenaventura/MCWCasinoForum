@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160" fill="none">
+  <rect width="320" height="160" fill="#141C2E"/>
+  <path d="M36 118 L86 78 L126 96 L186 48 L250 88 L284 62" stroke="#D7AE55" stroke-width="4" fill="none"/>
+  <circle cx="186" cy="48" r="6" fill="#38B982"/>
+  <text x="36" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#F0CF79">RTP</text>
+</svg>

@@ -1,26 +1,38 @@
-import { Pin } from 'lucide-react'
-import { useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { ChevronDown, Pin, ThumbsUp } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { useForum } from '../context/ForumContext'
-import { timeAgo } from '../lib/utils'
+import { compactNumber, forumTime } from '../lib/utils'
+import type { Thread } from '../types'
+
+type SortKey = 'latest' | 'popular' | 'pinned'
 
 export function CommunityDetail() {
   const { slug } = useParams()
-  const { getCategoryBySlug, childCategories, state, getUser, currentUser } = useForum()
+  const [params, setParams] = useSearchParams()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const sort = ((params.get('sort') as SortKey) || 'latest')
+  const { getCategoryBySlug, childCategories, state, currentUser, likeCount } = useForum()
   const category = getCategoryBySlug(slug || '')
   const children = category ? childCategories(category.id) : []
 
   const threads = useMemo(() => {
     if (!category) return []
-    return [...state.threads]
-      .filter((t) => t.forumId === category.id)
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.updatedAt) - +new Date(a.updatedAt))
-  }, [state.threads, category])
+    const ids = [category.id, ...children.map((c) => c.id)]
+    const list = state.threads.filter((t) => ids.includes(t.forumId))
+    if (sort === 'popular') {
+      return [...list].sort((a, b) => likeCount('thread', b.id) - likeCount('thread', a.id) || +new Date(b.createdAt) - +new Date(a.createdAt))
+    }
+    if (sort === 'pinned') {
+      return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.createdAt) - +new Date(a.createdAt))
+    }
+    return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.updatedAt) - +new Date(a.updatedAt))
+  }, [state.threads, category, children, sort, likeCount])
 
   if (!category) {
     return (
-      <div className="forum-card p-6 text-center">
+      <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
         <p>Community not found.</p>
         <Link to="/communities" className="btn btn-primary mt-3 inline-flex">Back to communities</Link>
       </div>
@@ -28,11 +40,18 @@ export function CommunityDetail() {
   }
 
   const parent = category.parentId ? state.categories.find((c) => c.id === category.parentId) : null
+  const sticky = threads.filter((t) => t.pinned)
+  const regular = threads.filter((t) => !t.pinned)
+
+  const setSort = (value: SortKey) => {
+    setParams(value === 'latest' ? {} : { sort: value })
+    setFiltersOpen(false)
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="text-xs prose-muted">
-        <Link to="/communities" className="gold-text hover:underline">Communities</Link>
+    <div className="max-w-[1100px] mx-auto space-y-2">
+      <div className="text-[12px] prose-muted">
+        <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
         {parent && (
           <>
             {' / '}
@@ -43,81 +62,124 @@ export function CommunityDetail() {
         {category.name}
       </div>
 
-      <section className="forum-card p-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold">{category.name}</h1>
-          <p className="text-sm prose-muted mt-1">{category.description}</p>
+          <h1 className="text-[16px] font-semibold gold-text">{category.name}</h1>
+          <p className="text-[12px] prose-muted">{category.description}</p>
         </div>
-        {currentUser ? (
-          <Link to={`/create?forum=${category.id}`} className="btn btn-accent">Post thread</Link>
-        ) : (
-          <Link to="/login" className="btn btn-secondary">Log in to post</Link>
-        )}
-      </section>
+        <div className="flex items-center gap-2">
+          {currentUser ? (
+            <Link to={`/create?forum=${category.id}`} className="btn btn-accent h-8 text-[12px]">Post thread</Link>
+          ) : (
+            <Link to="/login" className="btn btn-secondary h-8 text-[12px]">Log in to post</Link>
+          )}
+          <div className="relative">
+            <button type="button" className="btn btn-secondary h-8 text-[12px]" onClick={() => setFiltersOpen((v) => !v)}>
+              Filters <ChevronDown size={12} />
+            </button>
+            {filtersOpen && (
+              <div className="absolute right-0 mt-1 z-20 forum-card p-1 min-w-36">
+                {(['latest', 'popular', 'pinned'] as SortKey[]).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`block w-full text-left px-3 py-1.5 text-[12px] rounded ${sort === key ? 'gold-text' : 'prose-muted'}`}
+                    onClick={() => setSort(key)}
+                  >
+                    {key[0].toUpperCase() + key.slice(1)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {children.length > 0 && (
-        <section className="forum-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-[var(--color-border)] font-semibold">Sub-communities</div>
-          {children.map((c) => {
-            const latest = [...state.threads]
-              .filter((t) => t.forumId === c.id)
-              .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
-            return (
-              <Link key={c.id} to={`/communities/${c.slug}`} className="table-row flex items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <div className="font-medium">{c.name}</div>
-                  <div className="text-xs prose-muted">{c.description}</div>
-                </div>
-                <div className="text-xs prose-muted text-right">
-                  <div>{c.threadCount} threads</div>
-                  {latest && <div>{timeAgo(latest.createdAt)}</div>}
-                </div>
-              </Link>
-            )
-          })}
-        </section>
+        <div className="text-[12px] prose-muted">
+          Sub-forums:{' '}
+          {children.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && ' · '}
+              <Link to={`/communities/${c.slug}`} className="gold-text hover:underline">{c.name}</Link>
+            </span>
+          ))}
+        </div>
       )}
 
-      {children.length === 0 && (
-        <section className="forum-card overflow-hidden">
-          <div className="hidden md:grid grid-cols-[1fr_80px_80px_200px] gap-3 px-4 py-2 text-[11px] uppercase tracking-wide prose-muted border-b border-[var(--color-border)]">
-            <div>Thread</div>
-            <div className="text-right">Replies</div>
-            <div className="text-right">Views</div>
-            <div>Last activity</div>
-          </div>
-          {threads.map((t) => {
-            const author = getUser(t.authorId)
-            const replies = state.comments.filter((c) => c.threadId === t.id)
-            const last = replies.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
-            const lastUser = last ? getUser(last.authorId) : author
-            const lastAt = last?.createdAt || t.createdAt
-            return (
-              <Link key={t.id} to={`/thread/${t.id}`} className="table-row grid md:grid-cols-[1fr_80px_80px_200px] gap-2 px-4 py-3 items-center">
-                <div className="flex items-start gap-3 min-w-0">
-                  <Avatar user={author} size={32} />
-                  <div className="min-w-0">
-                    <div className="font-medium flex items-center gap-2">
-                      {t.pinned && <Pin size={12} className="text-[var(--color-gold)] shrink-0" />}
-                      <span className="line-clamp-1">{t.title}</span>
-                    </div>
-                    <div className="text-xs prose-muted">
-                      {author?.username} · {timeAgo(t.createdAt)}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-sm md:text-right prose-muted">{replies.length}</div>
-                <div className="text-sm md:text-right prose-muted">{t.views}</div>
-                <div className="text-xs prose-muted">
-                  {lastUser?.username}
-                  <div>{timeAgo(lastAt)}</div>
-                </div>
-              </Link>
-            )
-          })}
-          {threads.length === 0 && <div className="p-6 text-center prose-muted">No threads in this community yet.</div>}
-        </section>
-      )}
+      <section className="forum-list">
+        {sticky.map((t) => (
+          <ThreadRow key={t.id} thread={t} pleaseRead />
+        ))}
+
+        {regular.map((t) => (
+          <ThreadRow key={t.id} thread={t} />
+        ))}
+
+        {threads.length === 0 && (
+          <div className="p-6 text-center text-sm prose-muted">No threads in this community yet.</div>
+        )}
+      </section>
     </div>
+  )
+}
+
+function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?: boolean }) {
+  const { getUser, state, likeCount } = useForum()
+  const author = getUser(thread.authorId)
+  const replies = state.comments.filter((c) => c.threadId === thread.id)
+  const last = [...replies].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
+  const lastUser = last ? getUser(last.authorId) : author
+  const lastAt = last?.createdAt || thread.updatedAt
+  const likes = likeCount('thread', thread.id)
+  const forum = state.categories.find((c) => c.id === thread.forumId)
+  const pages = Math.max(1, Math.ceil((replies.length + 1) / 10))
+  const pageNumbers = pages <= 1 ? [] : pages <= 4
+    ? Array.from({ length: pages }, (_, i) => i + 1)
+    : [pages - 2, pages - 1, pages]
+
+  return (
+    <article className="thread-row">
+      <Avatar user={author} size={32} />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1">
+          <Link to={`/thread/${thread.id}`} className="text-[13px] font-semibold gold-text hover:underline line-clamp-2">
+            {pleaseRead && <Pin size={12} className="inline mr-1 -mt-0.5" />}
+            {pleaseRead && <span>Please Read: </span>}
+            {thread.title}
+          </Link>
+          {pageNumbers.map((n) => (
+            <Link key={n} to={`/thread/${thread.id}${n > 1 ? `?page=${n}` : ''}`} className="page-pill">
+              {n}
+            </Link>
+          ))}
+        </div>
+        <div className="text-[11px] prose-muted mt-0.5">
+          {author?.displayName} · {forumTime(thread.createdAt)}
+          {forum && (
+            <>
+              {' · '}
+              <Link to={`/communities/${forum.slug}`} className="hover:text-[var(--color-gold)]">{forum.name}</Link>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="stat-col text-[12px] prose-muted">
+        <div className="inline-flex items-center gap-1 text-[var(--color-ink)]">
+          <ThumbsUp size={12} /> <span className="prose-muted">x</span> {likes}
+        </div>
+      </div>
+      <div className="stat-col text-[12px] leading-tight">
+        <div>Replies: <span className="text-[var(--color-ink)]">{compactNumber(replies.length)}</span></div>
+        <div className="prose-muted">Views: {compactNumber(thread.views)}</div>
+      </div>
+      <div className="last-col min-w-0 flex items-center justify-end gap-2 text-right">
+        <div className="min-w-0">
+          <div className="text-[11px] prose-muted truncate">{forumTime(lastAt)}</div>
+          <div className="text-[11px] truncate">{lastUser?.username}</div>
+        </div>
+        <Avatar user={lastUser} size={26} />
+      </div>
+    </article>
   )
 }
