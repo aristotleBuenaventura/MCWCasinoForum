@@ -23,19 +23,13 @@ export default function App() {
           <Routes>
             <Route element={<Layout rails="both" />}>
               <Route index element={<Home />} />
-            </Route>
-            <Route element={<Layout rails="none" />}>
               <Route path="communities" element={<Communities />} />
               <Route path="communities/:slug" element={<CommunityDetail />} />
               <Route path="thread/:id" element={<ThreadDetail />} />
-            </Route>
-            <Route element={<Layout rails="left" />}>
               <Route path="members" element={<Members />} />
               <Route path="profile/:username" element={<Profile />} />
               <Route path="search" element={<Search />} />
               <Route path="notifications" element={<Notifications />} />
-            </Route>
-            <Route element={<Layout rails="none" />}>
               <Route path="login" element={<Login />} />
               <Route path="register" element={<Register />} />
               <Route path="create" element={<CreateThread />} />
