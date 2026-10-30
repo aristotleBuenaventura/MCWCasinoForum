@@ -14,7 +14,7 @@ const links = [
 ]
 
 export function Header() {
-  const { currentUser, logout, unreadCount, isMod } = useForum()
+  const { currentUser, logout, unreadCount, isAdmin } = useForum()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
@@ -58,7 +58,7 @@ export function Header() {
         </form>
 
         <div className="flex items-center gap-1.5 ml-auto">
-          <Link to="/create" className="btn btn-primary hidden sm:inline-flex">Post thread</Link>
+          {currentUser && <Link to="/create" className="btn btn-primary hidden sm:inline-flex">Post thread</Link>}
           {currentUser ? (
             <>
               <Link to="/notifications" className="btn btn-secondary btn-icon relative" aria-label="Notifications">
@@ -69,7 +69,7 @@ export function Header() {
                   </span>
                 )}
               </Link>
-              {isMod && <Link to="/admin" className="btn btn-secondary hidden sm:inline-flex">Admin</Link>}
+              {isAdmin && <Link to="/admin" className="btn btn-secondary hidden sm:inline-flex">Admin</Link>}
               <Link to={`/profile/${currentUser.username}`} className="rounded-full focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--color-gold)_55%,transparent)] focus-visible:outline-offset-1" aria-label="Your profile">
                 <Avatar user={currentUser} size={26} />
               </Link>

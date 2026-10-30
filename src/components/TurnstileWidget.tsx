@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-/** Cloudflare always-pass test sitekey — visual widget only (no server siteverify). */
+/** Cloudflare test sitekey. The API verifies tokens with siteverify. */
 const SITEKEY = '1x00000000000000000000AA'
 
 type TurnstileApi = {

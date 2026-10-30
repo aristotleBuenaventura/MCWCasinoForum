@@ -25,7 +25,7 @@ export function Moderation() {
         <LoginLink className="btn btn-primary mt-3 inline-flex">
           Log in as moderator
         </LoginLink>
-        <p className="text-xs prose-muted mt-3">Use moderator / moderator123</p>
+        <p className="text-xs prose-muted mt-3">Moderator or admin login required.</p>
       </div>
     )
   }

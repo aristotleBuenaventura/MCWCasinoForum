@@ -48,9 +48,9 @@ export function LoginModal() {
 
   if (!loginOpen) return null
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const res = login(usernameOrEmail, password)
+    const res = await login(usernameOrEmail, password, stayLoggedIn)
     if (!res.ok) {
       setError(res.error)
       return
@@ -119,7 +119,7 @@ export function LoginModal() {
               </button>
               {forgot && (
                 <p className="xf-reg-hint mt-1">
-                  Password reset is not enabled in this demo. Try <code>alicewins</code> / <code>password123</code>.
+                  Password reset is not enabled. Contact an administrator if you need access.
                 </p>
               )}
               <label className="xf-check">

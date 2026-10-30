@@ -1,34 +1,38 @@
 # MCW Casino Forum
 
-Dark casino community forum: homepage hub, nested communities (BlackHatWorld-style), and an admin CMS for ads and featured content.
+Dark casino community forum. Same stack as MR Database Tool: React + Express + MySQL + Prisma + Nginx + PM2.
 
-## Features
+## Stack
 
-- Dark-only UI inspired by the proposed MCW homepage
-- Auth: register, login, logout, roles (`user` / `moderator` / `admin`)
-- Nested communities → topic → thread list → discussion
-- Threads: create, like, comment, share, report, pin
-- Image & video uploads on posts
-- Profiles, follow / unfollow
-- Search, notifications, moderation
-- Admin/mod dashboard:
-  - Rotating ads (image/GIF + URL, interval in seconds)
-  - Trending games
-  - Featured communities
-  - Top game providers
-  - Community CRUD
-  - Thread pins, reports, user removal
-- Home cards (reviews, bonuses, wins, guides) come from **real forum threads**
-- Placeholder images for logos/banners/ads; Facebook-style silhouette avatars
+| Layer | Tech |
+| --- | --- |
+| Frontend | React, Vite, React Router |
+| Backend | Node.js, Express, JWT httpOnly cookie |
+| Database | Local MySQL + Prisma |
+| Deploy | Nginx + PM2 + Certbot on a droplet |
 
-Data is stored in **localStorage** (no backend required for the demo).
+## Local development
 
-## Quick start
+MySQL must already be running (same as MR Database Tool). Create a separate database:
+
+```sql
+CREATE DATABASE mcwforum CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Then:
 
 ```bash
-npm install
+npm run install:all
+cp backend/.env.example backend/.env
+# edit backend/.env with your local MySQL user/password
+cd backend && npx prisma db push && npm run db:seed && cd ..
 npm run dev
 ```
+
+- Web: http://localhost:5173
+- API: http://localhost:4000 (`/api/health`)
+
+Vite proxies `/api` to Express so login cookies work on localhost.
 
 ## Demo accounts
 
@@ -37,14 +41,11 @@ npm run dev
 | alicewins  | password123    | user      |
 | bobdealer  | password123    | user      |
 | caraspins  | password123    | user      |
-| moderator  | moderator123  | moderator |
+| moderator  | moderator123   | moderator |
 | admin      | admin123       | admin     |
 
-Admin and moderator share the same dashboard at `/admin`.
+Change these before a public deploy. Set a real `JWT_SECRET` (32+ chars) in `backend/.env`.
 
-## Stack
+## Production (DigitalOcean)
 
-- React + Vite + TypeScript
-- React Router
-- Tailwind CSS v4
-- lucide-react icons
+See [docs/DEPLOY-DROPLET.md](docs/DEPLOY-DROPLET.md) — Nginx + PM2 + local MySQL, same flow as MR Database Tool.

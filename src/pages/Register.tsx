@@ -56,7 +56,7 @@ export function Register() {
     return `${year}-${month}-${d}`
   }, [month, day, year])
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (wait > 0) return
     if (!agreed) {
@@ -71,7 +71,11 @@ export function Register() {
       setError('Date of birth is required.')
       return
     }
-    const res = register({
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    const res = await register({
       username,
       email,
       password,
@@ -164,7 +168,7 @@ export function Register() {
               </div>
               <div className="xf-pass-meter" />
               <p className="xf-reg-hint">
-                {password ? 'Choose a strong password of at least 6 characters.' : 'Entering a password is required.'}
+                {password ? 'Choose a strong password of at least 8 characters.' : 'Entering a password is required.'}
               </p>
             </div>
           </div>

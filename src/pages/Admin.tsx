@@ -58,7 +58,7 @@ function ImageField({
 export function Admin() {
   const {
     currentUser,
-    isMod,
+    isAdmin,
     state,
     getUser,
     saveAd,
@@ -96,12 +96,11 @@ export function Admin() {
     order: 1,
   })
 
-  if (!currentUser || !isMod) {
+  if (!currentUser || !isAdmin) {
     return (
       <div className="forum-card p-6 text-center max-w-lg mx-auto">
-        <p className="prose-muted">Admin / moderator access required.</p>
+        <p className="prose-muted">Admin access required.</p>
         <LoginLink className="btn btn-primary mt-3 inline-flex">Log in</LoginLink>
-        <p className="text-xs prose-muted mt-3">Use moderator / moderator123 or admin / admin123</p>
       </div>
     )
   }
@@ -158,9 +157,9 @@ export function Admin() {
     toast('Provider saved')
   }
 
-  const submitCat = (e: FormEvent) => {
+  const submitCat = async (e: FormEvent) => {
     e.preventDefault()
-    const res = saveCategory({
+    const res = await saveCategory({
       id: catForm.id || undefined,
       name: catForm.name,
       slug: catForm.slug,
@@ -184,7 +183,7 @@ export function Admin() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title gold-text">Admin dashboard</h1>
-          <p className="text-[12px] prose-muted">Set ads, trending games, featured communities, and providers. Same access for admins and moderators.</p>
+          <p className="text-[12px] prose-muted">Set ads, trending games, featured communities, and providers. Admin only.</p>
         </div>
         <button
           type="button"
@@ -373,8 +372,8 @@ export function Admin() {
                 <button
                   type="button"
                   className="btn btn-danger text-xs"
-                  onClick={() => {
-                    const res = deleteCategory(c.id)
+                  onClick={async () => {
+                    const res = await deleteCategory(c.id)
                     toast(res.ok ? 'Deleted' : res.error)
                   }}
                 >

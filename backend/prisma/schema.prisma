@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id                  String    @id @db.VarChar(64)
+  username            String    @unique @db.VarChar(32)
+  email               String    @unique @db.VarChar(255)
+  passwordHash        String    @map("password_hash") @db.VarChar(255)
+  displayName         String    @map("display_name") @db.VarChar(255)
+  bio                 String    @db.Text
+  avatar              String    @db.Text
+  role                String    @default("user") @db.VarChar(32)
+  banned              Boolean   @default(false)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  dateOfBirth         DateTime? @map("date_of_birth") @db.Date
+
+  sessions      UserSession[]
+  threads       Thread[]
+  comments      Comment[]
+  likes         Like[]
+  following     Follow[]         @relation("Follower")
+  followers     Follow[]         @relation("Following")
+  notifications Notification[]
+  reports       Report[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id         String    @id @db.VarChar(36)
+  userId     String    @map("user_id") @db.VarChar(64)
+  ipAddress  String?   @map("ip_address") @db.VarChar(64)
+  userAgent  String?   @map("user_agent") @db.VarChar(512)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt], map: "idx_session_user_revoked")
+  @@map("user_sessions")
+}
+
+model Category {
+  id          String  @id @db.VarChar(64)
+  slug        String  @unique @db.VarChar(80)
+  name        String  @db.VarChar(120)
+  description String  @db.Text
+  parentId    String? @map("parent_id") @db.VarChar(64)
+  featured    Boolean @default(false)
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  children Category[] @relation("CategoryTree")
+  threads  Thread[]
+
+  @@map("categories")
+}
+
+model Thread {
+  id        String   @id @db.VarChar(64)
+  forumId   String   @map("forum_id") @db.VarChar(64)
+  authorId  String   @map("author_id") @db.VarChar(64)
+  title     String   @db.VarChar(255)
+  content   String   @db.Text
+  body      Json
+  mediaUrl  String?  @map("media_url") @db.Text
+  mediaType String?  @map("media_type") @db.VarChar(32)
+  pinned    Boolean  @default(false)
+  solved    Boolean  @default(false)
+  tags      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  views     Int      @default(0)
+
+  forum    Category  @relation(fields: [forumId], references: [id], onDelete: Restrict)
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@index([forumId], map: "idx_threads_forum")
+  @@index([createdAt], map: "idx_threads_created")
+  @@map("threads")
+}
+
+model Comment {
+  id        String   @id @db.VarChar(64)
+  threadId  String   @map("thread_id") @db.VarChar(64)
+  authorId  String   @map("author_id") @db.VarChar(64)
+  parentId  String?  @map("parent_id") @db.VarChar(64)
+  content   String   @db.Text
+  body      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread  Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies Comment[] @relation("CommentTree")
+
+  @@index([threadId], map: "idx_comments_thread")
+  @@map("comments")
+}
+
+model Like {
+  id         String @id @db.VarChar(64)
+  userId     String @map("user_id") @db.VarChar(64)
+  targetType String @map("target_type") @db.VarChar(16)
+  targetId   String @map("target_id") @db.VarChar(64)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId], map: "uniq_like")
+  @@map("likes")
+}
+
+model Follow {
+  id          String @id @db.VarChar(64)
+  followerId  String @map("follower_id") @db.VarChar(64)
+  followingId String @map("following_id") @db.VarChar(64)
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId], map: "uniq_follow")
+  @@map("follows")
+}
+
+model Notification {
+  id        String   @id @db.VarChar(64)
+  userId    String   @map("user_id") @db.VarChar(64)
+  type      String   @db.VarChar(32)
+  message   String   @db.VarChar(512)
+  link      String   @default("/") @db.VarChar(255)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read], map: "idx_notifications_user")
+  @@map("notifications")
+}
+
+model Report {
+  id         String   @id @db.VarChar(64)
+  reporterId String   @map("reporter_id") @db.VarChar(64)
+  targetType String   @map("target_type") @db.VarChar(16)
+  targetId   String   @map("target_id") @db.VarChar(64)
+  reason     String   @db.Text
+  status     String   @default("open") @db.VarChar(16)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model Ad {
+  id        String @id @db.VarChar(64)
+  slot      String @db.VarChar(32)
+  imageUrl  String @map("image_url") @db.Text
+  url       String @default("") @db.VarChar(512)
+  title     String @default("") @db.VarChar(255)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@map("ads")
+}
+
+model TrendingGame {
+  id        String @id @db.VarChar(64)
+  title     String @db.VarChar(255)
+  subtitle  String @default("") @db.VarChar(255)
+  imageUrl  String @map("image_url") @db.Text
+  url       String @default("") @db.VarChar(512)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@map("trending_games")
+}
+
+model Provider {
+  id        String @id @db.VarChar(64)
+  name      String @db.VarChar(255)
+  imageUrl  String @map("image_url") @db.Text
+  url       String @default("") @db.VarChar(512)
+  rating    Float  @default(0)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@map("providers")
+}
+
+model Setting {
+  key   String @id @db.VarChar(64)
+  value String @db.VarChar(255)
+
+  @@map("settings")
+}
