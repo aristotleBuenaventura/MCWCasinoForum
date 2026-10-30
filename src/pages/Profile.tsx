@@ -1,10 +1,26 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
-import { ThreadCard } from '../components/ThreadCard'
+import { LoginLink } from '../components/LoginModal'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
-import { fileToDataUrl, timeAgo } from '../lib/utils'
+import { textFromBody } from '../lib/postBody'
+import { avatarColor, fileToDataUrl, forumTime } from '../lib/utils'
+import type { User } from '../types'
+
+type Tab = 'activity' | 'postings' | 'about'
+
+function memberTitle(user: User) {
+  if (user.role === 'admin') return { text: 'Owner', className: 'bg-[#2a7a73] text-white' }
+  if (user.role === 'moderator') return { text: 'Moderator', className: 'bg-[#b42318] text-white' }
+  return { text: 'Registered Member', className: 'bg-[#3a3f4d] text-[#d5d8e0]' }
+}
+
+function snippet(text: string) {
+  const clean = text.replace(/\s+/g, ' ').trim()
+  if (!clean) return ''
+  return clean.length > 160 ? `${clean.slice(0, 157)}…` : clean
+}
 
 export function Profile() {
   const { username } = useParams()
@@ -28,7 +44,7 @@ export function Profile() {
   const [editing, setEditing] = useState(false)
   const [bio, setBio] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [tab, setTab] = useState<'posts' | 'followers' | 'following'>('posts')
+  const [tab, setTab] = useState<Tab>('activity')
 
   const threads = useMemo(
     () =>
@@ -39,6 +55,73 @@ export function Profile() {
         : [],
     [state.threads, user],
   )
+
+  const comments = useMemo(
+    () => (user ? state.comments.filter((c) => c.authorId === user.id) : []),
+    [state.comments, user],
+  )
+
+  const messages = threads.length + comments.length
+
+  const reactionScore = useMemo(() => {
+    if (!user) return 0
+    const threadIds = new Set(state.threads.filter((t) => t.authorId === user.id).map((t) => t.id))
+    const commentIds = new Set(state.comments.filter((c) => c.authorId === user.id).map((c) => c.id))
+    return state.likes.filter((l) =>
+      l.targetType === 'thread' ? threadIds.has(l.targetId) : commentIds.has(l.targetId),
+    ).length
+  }, [state.comments, state.likes, state.threads, user])
+
+  const lastSeen = useMemo(() => {
+    if (isSelf) return 'Now'
+    const dates = [...threads.map((t) => t.createdAt), ...comments.map((c) => c.createdAt)]
+    if (!dates.length) return user ? forumTime(user.createdAt) : '—'
+    dates.sort((a, b) => +new Date(b) - +new Date(a))
+    return forumTime(dates[0])
+  }, [comments, isSelf, threads, user])
+
+  const activity = useMemo(() => {
+    if (!user) return []
+    const items: {
+      id: string
+      createdAt: string
+      kind: 'thread' | 'reply'
+      threadId: string
+      title: string
+      forumName?: string
+      forumSlug?: string
+      excerpt: string
+    }[] = []
+
+    for (const t of threads) {
+      const forum = state.categories.find((c) => c.id === t.forumId)
+      items.push({
+        id: `thread-${t.id}`,
+        createdAt: t.createdAt,
+        kind: 'thread',
+        threadId: t.id,
+        title: t.title,
+        forumName: forum?.name,
+        forumSlug: forum?.slug,
+        excerpt: snippet(t.content || textFromBody(t.body)),
+      })
+    }
+
+    for (const c of comments) {
+      const thread = state.threads.find((t) => t.id === c.threadId)
+      if (!thread) continue
+      items.push({
+        id: `reply-${c.id}`,
+        createdAt: c.createdAt,
+        kind: 'reply',
+        threadId: thread.id,
+        title: thread.title,
+        excerpt: snippet(c.content || textFromBody(c.body)),
+      })
+    }
+
+    return items.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+  }, [comments, state.categories, state.threads, threads, user])
 
   const followers = useMemo(
     () =>
@@ -73,10 +156,14 @@ export function Profile() {
     )
   }
 
+  const title = memberTitle(user)
+  const markColor = avatarColor(user.username)
+
   const startEdit = () => {
     setDisplayName(user.displayName)
     setBio(user.bio)
     setEditing(true)
+    setTab('about')
   }
 
   const saveProfile = (e: FormEvent) => {
@@ -98,13 +185,21 @@ export function Profile() {
   }
 
   return (
-    <div className="space-y-4">
-      <section className="forum-card p-5">
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
-          <div className="flex flex-col items-center gap-2">
-            <Avatar user={user} size={88} />
+    <div>
+      <nav className="text-[12px] prose-muted mb-2">
+        <Link to="/" className="gold-text hover:underline">Home</Link>
+        {' > '}
+        <Link to="/members" className="gold-text hover:underline">Members</Link>
+        {' > '}
+        {user.username}
+      </nav>
+
+      <section className="xf-profile">
+        <div className="xf-profile-head">
+          <div className="xf-profile-avatar">
+            <Avatar user={user} size={96} />
             {isSelf && (
-              <label className="btn btn-secondary text-xs cursor-pointer">
+              <label className="btn btn-secondary text-[11px] h-7 mt-2 cursor-pointer w-full">
                 Change photo
                 <input
                   type="file"
@@ -115,41 +210,35 @@ export function Profile() {
               </label>
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-bold">{user.displayName}</h1>
-                <div className="prose-muted">@{user.username}</div>
-                {user.role !== 'user' && (
-                  <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded bg-[white] text-[var(--color-gold)] font-semibold uppercase">
-                    {user.role}
-                  </span>
-                )}
+                <h1 className="text-[22px] font-semibold leading-tight">{user.username}</h1>
+                <span className={`role-pill mt-1 ${title.className}`}>{title.text}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {isSelf ? (
-                  <button type="button" className="btn btn-secondary" onClick={startEdit}>
-                    Edit profile
+                  <button type="button" className="btn-post" onClick={startEdit}>Edit profile</button>
+                ) : currentUser ? (
+                  <button
+                    type="button"
+                    className="btn-post"
+                    onClick={() => {
+                      const wasFollowing = isFollowing(user.id)
+                      toggleFollow(user.id)
+                      toast(wasFollowing ? 'Unfollowed' : 'Following')
+                    }}
+                  >
+                    {isFollowing(user.id) ? 'Unfollow' : 'Follow'}
                   </button>
                 ) : (
-                  currentUser && (
-                    <button
-                      type="button"
-                      className={`btn ${isFollowing(user.id) ? 'btn-secondary' : 'btn-primary'}`}
-                      onClick={() => {
-                        const wasFollowing = isFollowing(user.id)
-                        toggleFollow(user.id)
-                        toast(wasFollowing ? 'Unfollowed' : 'Following')
-                      }}
-                    >
-                      {isFollowing(user.id) ? 'Following' : 'Follow'}
-                    </button>
-                  )
+                  <LoginLink className="btn-post">Follow</LoginLink>
                 )}
                 {currentUser && !isSelf && (
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="xf-tool"
                     onClick={() => {
                       const reason = window.prompt('Why are you reporting this user?')
                       if (!reason) return
@@ -163,94 +252,216 @@ export function Profile() {
                 {isMod && !isSelf && user.role === 'user' && (
                   <button
                     type="button"
-                    className="btn btn-danger"
+                    className="xf-tool"
                     onClick={() => {
                       if (!window.confirm(`Remove @${user.username}?`)) return
                       banUser(user.id, true)
                       toast('User removed')
                     }}
                   >
-                    Remove user
+                    Remove
                   </button>
                 )}
               </div>
             </div>
-            <p className="mt-3 text-sm whitespace-pre-wrap">{user.bio || 'No bio yet.'}</p>
-            <div className="mt-3 flex flex-wrap gap-4 text-sm">
-              <button type="button" onClick={() => setTab('posts')} className="hover:text-[var(--color-gold)]">
-                <strong>{threads.length}</strong> posts
-              </button>
-              <button type="button" onClick={() => setTab('followers')} className="hover:text-[var(--color-gold)]">
-                <strong>{followerCount(user.id)}</strong> followers
-              </button>
-              <button type="button" onClick={() => setTab('following')} className="hover:text-[var(--color-gold)]">
-                <strong>{followingCount(user.id)}</strong> following
-              </button>
-              <span className="prose-muted">Joined {timeAgo(user.createdAt)}</span>
-            </div>
+
+            <dl className="xf-profile-stats">
+              <div>
+                <dt>Joined</dt>
+                <dd>{forumTime(user.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Messages</dt>
+                <dd>{messages}</dd>
+              </div>
+              <div>
+                <dt>Last seen</dt>
+                <dd>{lastSeen}</dd>
+              </div>
+              <div>
+                <dt>Reaction score</dt>
+                <dd>{reactionScore}</dd>
+              </div>
+            </dl>
           </div>
         </div>
 
-        {editing && (
-          <form onSubmit={saveProfile} className="mt-4 border-t border-[var(--color-border)] pt-4 space-y-3">
-            <div>
-              <label className="text-sm font-medium">Display name</label>
-              <input className="input mt-1" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Bio</label>
-              <textarea className="input mt-1 min-h-24" value={bio} onChange={(e) => setBio(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" className="btn btn-primary">
-                Save
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
-                Cancel
-              </button>
-            </div>
-          </form>
+        <div className="xf-tabs" role="tablist">
+          {([
+            ['activity', 'Recent activity'],
+            ['postings', 'Postings'],
+            ['about', 'About'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              className={`xf-tab ${tab === id ? 'is-active' : ''}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'activity' && (
+          <div>
+            {activity.length === 0 && (
+              <div className="px-4 py-6 text-center text-sm prose-muted">No recent activity.</div>
+            )}
+            {activity.map((item) => (
+              <article key={item.id} className="xf-activity">
+                <div className="xf-activity-mark" style={{ background: markColor }}>
+                  {user.username.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] leading-snug">
+                    <span className="gold-text font-semibold">{user.username}</span>
+                    {item.kind === 'thread' ? ' posted the thread ' : ' replied to the thread '}
+                    <Link to={`/thread/${item.threadId}`} className="gold-text hover:underline">
+                      {item.title}
+                    </Link>
+                    {item.kind === 'thread' && item.forumSlug && (
+                      <>
+                        {' in '}
+                        <Link to={`/communities/${item.forumSlug}`} className="gold-text hover:underline">
+                          {item.forumName}
+                        </Link>
+                      </>
+                    )}
+                    .
+                  </p>
+                  {item.excerpt && <p className="xf-activity-excerpt">{item.excerpt}</p>}
+                </div>
+                <time className="xf-activity-time">{forumTime(item.createdAt)}</time>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {tab === 'postings' && (
+          <div>
+            {threads.map((t) => {
+              const forum = state.categories.find((c) => c.id === t.forumId)
+              const replies = state.comments.filter((c) => c.threadId === t.id).length
+              return (
+                <article key={t.id} className="xf-activity">
+                  <div className="xf-activity-mark" style={{ background: markColor }}>
+                    {user.username.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/thread/${t.id}`} className="text-[13px] font-semibold gold-text hover:underline">
+                      {t.title}
+                    </Link>
+                    <div className="text-[11px] prose-muted mt-0.5">
+                      {forum && (
+                        <>
+                          <Link to={`/communities/${forum.slug}`} className="hover:text-[var(--color-gold)]">
+                            {forum.name}
+                          </Link>
+                          {' · '}
+                        </>
+                      )}
+                      Replies: {replies} · Views: {t.views}
+                    </div>
+                  </div>
+                  <time className="xf-activity-time">{forumTime(t.createdAt)}</time>
+                </article>
+              )
+            })}
+            {threads.length === 0 && (
+              <div className="px-4 py-6 text-center text-sm prose-muted">No threads yet.</div>
+            )}
+          </div>
+        )}
+
+        {tab === 'about' && (
+          <div className="xf-about">
+            {editing ? (
+              <form onSubmit={saveProfile} className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium">Display name</label>
+                  <input className="input mt-1" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">About</label>
+                  <textarea className="input mt-1 min-h-24" value={bio} onChange={(e) => setBio(e.target.value)} />
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" className="btn-post">Save</button>
+                  <button type="button" className="xf-tool" onClick={() => setEditing(false)}>Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <dl className="xf-about-list">
+                  <div>
+                    <dt>Username</dt>
+                    <dd>{user.username}</dd>
+                  </div>
+                  <div>
+                    <dt>Display name</dt>
+                    <dd>{user.displayName}</dd>
+                  </div>
+                  <div>
+                    <dt>Location</dt>
+                    <dd className="prose-muted">Not set</dd>
+                  </div>
+                  <div>
+                    <dt>Followers</dt>
+                    <dd>{followerCount(user.id)}</dd>
+                  </div>
+                  <div>
+                    <dt>Following</dt>
+                    <dd>{followingCount(user.id)}</dd>
+                  </div>
+                </dl>
+                <div className="mt-4">
+                  <div className="text-[12px] prose-muted mb-1">About</div>
+                  <p className="text-[13px] whitespace-pre-wrap">{user.bio || 'No information to display.'}</p>
+                </div>
+                {(followers.length > 0 || following.length > 0) && (
+                  <div className="mt-5 grid sm:grid-cols-2 gap-4">
+                    <UserList title="Followers" users={followers as User[]} empty="No followers yet." />
+                    <UserList title="Following" users={following as User[]} empty="Not following anyone yet." />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
       </section>
-
-      {tab === 'posts' && (
-        <div className="space-y-3">
-          {threads.map((t) => (
-            <ThreadCard key={t.id} thread={t} />
-          ))}
-          {threads.length === 0 && <div className="forum-card p-5 prose-muted text-center">No posts yet.</div>}
-        </div>
-      )}
-
-      {tab === 'followers' && (
-        <UserList users={followers as NonNullable<(typeof followers)[number]>[]} empty="No followers yet." />
-      )}
-      {tab === 'following' && (
-        <UserList users={following as NonNullable<(typeof following)[number]>[]} empty="Not following anyone yet." />
-      )}
     </div>
   )
 }
 
 function UserList({
+  title,
   users,
   empty,
 }: {
-  users: { id: string; username: string; displayName: string; avatar: string; bio: string }[]
+  title: string
+  users: User[]
   empty: string
 }) {
-  if (users.length === 0) return <div className="forum-card p-5 prose-muted text-center">{empty}</div>
   return (
-    <div className="forum-card divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
-      {users.map((u) => (
-        <Link key={u.id} to={`/profile/${u.username}`} className="flex gap-3 p-3 hover:bg-[white]/40 dark:hover:bg-[#243040]">
-          <Avatar user={u} />
-          <div>
-            <div className="font-semibold">{u.displayName}</div>
-            <div className="text-sm prose-muted">@{u.username}</div>
-          </div>
-        </Link>
-      ))}
+    <div>
+      <div className="text-[12px] prose-muted mb-2">{title}</div>
+      {users.length === 0 ? (
+        <p className="text-[12px] prose-muted">{empty}</p>
+      ) : (
+        <ul className="space-y-2">
+          {users.map((u) => (
+            <li key={u.id}>
+              <Link to={`/profile/${u.username}`} className="flex items-center gap-2 hover:text-[var(--color-gold)]">
+                <Avatar user={u} size={24} />
+                <span className="text-[13px]">{u.username}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

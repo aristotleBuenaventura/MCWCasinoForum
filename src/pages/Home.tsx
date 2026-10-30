@@ -193,12 +193,12 @@ export function Home() {
           <div className="section-title">Latest casino reviews</div>
           <div className="flex items-center gap-1.5">
             <div className="relative">
-              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#929cb3]" />
+              <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#929cb3]" />
               <input
                 value={reviewQuery}
                 onChange={(e) => setReviewQuery(e.target.value)}
                 placeholder="Search"
-                className="input h-7 w-28 pl-6 text-[12px]"
+                className="input h-7 w-32 pl-7 text-[12px]"
               />
             </div>
             <Link to="/communities/casino-reviews" className="btn btn-secondary h-7 text-[11px]">Filter</Link>

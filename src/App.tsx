@@ -33,9 +33,11 @@ export default function App() {
               <Route path="login" element={<Login />} />
               <Route path="register" element={<Register />} />
               <Route path="create" element={<CreateThread />} />
+              <Route path="forums" element={<Navigate to="/communities" replace />} />
+            </Route>
+            <Route element={<Layout rails="none" />}>
               <Route path="admin" element={<Admin />} />
               <Route path="moderation" element={<Navigate to="/admin" replace />} />
-              <Route path="forums" element={<Navigate to="/communities" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

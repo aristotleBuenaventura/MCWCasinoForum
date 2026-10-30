@@ -37,7 +37,7 @@ export function Header() {
           </div>
         </Link>
 
-        <nav className="hidden lg:flex items-center text-[13px]">
+        <nav className="hidden md:flex items-center text-[13px]">
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               {l.label}
@@ -47,12 +47,12 @@ export function Header() {
 
         <form onSubmit={onSearch} className="hidden md:flex flex-1 max-w-sm ml-2">
           <div className="relative w-full">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#929cb3]" />
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#929cb3]" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search discussions, games, and reviews"
-              className="input pl-8 h-8 text-[13px]"
+              className="input pl-9 h-8 text-[13px]"
             />
           </div>
         </form>
@@ -61,7 +61,7 @@ export function Header() {
           <Link to="/create" className="btn btn-accent h-8 px-3 hidden sm:inline-flex">Create Post</Link>
           {currentUser ? (
             <>
-              <Link to="/notifications" className="btn btn-secondary relative h-8 w-8 p-0">
+              <Link to="/notifications" className="btn btn-secondary btn-icon relative" aria-label="Notifications">
                 <Bell size={14} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-[var(--color-danger)] text-white text-[10px] flex items-center justify-center">
@@ -70,7 +70,9 @@ export function Header() {
                 )}
               </Link>
               {isMod && <Link to="/admin" className="btn btn-secondary h-8 hidden sm:inline-flex">Admin</Link>}
-              <Link to={`/profile/${currentUser.username}`}><Avatar user={currentUser} size={26} /></Link>
+              <Link to={`/profile/${currentUser.username}`} className="rounded-full focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--color-gold)_55%,transparent)] focus-visible:outline-offset-1" aria-label="Your profile">
+                <Avatar user={currentUser} size={26} />
+              </Link>
               <button type="button" className="btn btn-secondary h-8 hidden md:inline-flex" onClick={logout}>Log out</button>
             </>
           ) : (
@@ -79,17 +81,46 @@ export function Header() {
               <Link to="/register" className="btn btn-primary h-8">Register</Link>
             </>
           )}
-          <button type="button" className="lg:hidden btn btn-secondary h-8 w-8 p-0" onClick={() => setOpen((v) => !v)}>
+          <button
+            type="button"
+            className="md:hidden btn btn-secondary btn-icon"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+          >
             {open ? <X size={15} /> : <Menu size={15} />}
           </button>
         </div>
       </div>
 
       {open && (
-        <div className="lg:hidden border-t border-[var(--color-border)] px-3 py-2 space-y-1 bg-[var(--color-nav)]">
+        <div className="md:hidden border-t border-[var(--color-border)] px-3 py-2 space-y-1 bg-[var(--color-nav)]">
+          <form onSubmit={onSearch} className="pb-2">
+            <div className="relative">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#929cb3]" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search the forum"
+                className="input pl-9 h-8 text-[13px]"
+              />
+            </div>
+          </form>
           {links.map((l) => (
             <Link key={l.to} to={l.to} className="block py-1.5 text-sm" onClick={() => setOpen(false)}>{l.label}</Link>
           ))}
+          {currentUser && (
+            <button
+              type="button"
+              className="block py-1.5 text-sm w-full text-left"
+              onClick={() => {
+                setOpen(false)
+                logout()
+              }}
+            >
+              Log out
+            </button>
+          )}
         </div>
       )}
     </header>
