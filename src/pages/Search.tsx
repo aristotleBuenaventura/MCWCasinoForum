@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { ThreadCard } from '../components/ThreadCard'
 import { api } from '../lib/api'
@@ -72,7 +73,7 @@ export function Search() {
                 <Link key={u.id} to={`/profile/${u.username}`} className="list-row flex gap-3 p-3">
                   <Avatar user={u} />
                   <div>
-                    <div className="font-semibold gold-text">{u.displayName}</div>
+                    <div className="font-semibold"><Username user={u} link={false} /></div>
                     <div className="text-sm prose-muted">@{u.username}</div>
                   </div>
                 </Link>

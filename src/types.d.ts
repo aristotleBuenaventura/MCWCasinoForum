@@ -10,7 +10,8 @@ export type PostBlock = {
     url: string;
 };
 export type PostBody = PostBlock[];
-export type AdSlot = 'left-1' | 'left-2' | 'left-3' | 'right-1';
+export declare const AD_SLOTS: readonly ["left-1", "left-2", "left-3", "right-1", "thread"];
+export type AdSlot = (typeof AD_SLOTS)[number];
 export interface User {
     id: string;
     username: string;

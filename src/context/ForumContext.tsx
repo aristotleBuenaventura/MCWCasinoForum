@@ -22,6 +22,7 @@ import type {
   Thread,
   User,
 } from '../types'
+import type { Membership, NameEmblem, NameFrame } from '../lib/nameplate'
 
 type RegisterInput = {
   username: string
@@ -86,7 +87,11 @@ type ForumContextValue = {
   deleteThread: (id: string) => void
   togglePin: (id: string) => void
   bumpViews: (id: string) => void
-  addComment: (threadId: string, body: PostBody, parentId?: string | null) => Promise<Comment | { error: string }>
+  addComment: (
+    threadId: string,
+    body: PostBody,
+    parentId?: string | null,
+  ) => Promise<(Comment & { author?: User | null }) | { error: string }>
   deleteComment: (id: string) => void
   toggleLike: (targetType: 'thread' | 'comment', targetId: string) => void
   isLiked: (targetType: 'thread' | 'comment', targetId: string) => boolean
@@ -100,6 +105,11 @@ type ForumContextValue = {
   resolveReport: (id: string) => void
   banUser: (userId: string, banned?: boolean) => void
   setRole: (userId: string, role: Role) => void
+  equipNameplate: (patch: { frame?: NameFrame; emblem?: NameEmblem }) => Promise<{ ok: true } | { ok: false; error: string }>
+  adminNameplate: (
+    userId: string,
+    patch: { membership?: Membership; frame?: NameFrame; emblem?: NameEmblem; unlockFrames?: NameFrame[]; unlockEmblems?: NameEmblem[] },
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
   markNotificationsRead: () => void
   resetDemoData: () => Promise<{ ok: true } | { ok: false; error: string }>
   getUser: (id: string) => User | undefined
@@ -314,12 +324,14 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return { error: 'Please log in to comment.' }
     if (isBodyEmpty(bodyInput)) return { error: 'Write something or insert an image.' }
     const body = await persistBodyImages(`comment_${Date.now()}`, bodyInput)
-    const res = await api<{ comment?: Comment }>('/api/comments', {
+    const res = await api<{ comment?: Comment & { author?: User | null } }>('/api/comments', {
       method: 'POST',
       body: JSON.stringify({ threadId, parentId, body }),
     })
     if (!res.ok) return { error: res.error }
-    return res.comment ?? { error: 'Comment added.' }
+    if (!res.comment) return { error: 'Comment added.' }
+    setState((s) => ({ ...s, comments: [...s.comments, res.comment!] }))
+    return res.comment
   }
 
   const deleteComment: ForumContextValue['deleteComment'] = (id) => {
@@ -374,6 +386,35 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const setRole: ForumContextValue['setRole'] = (userId, role) => {
     if (!isAdmin) return
     void api(`/api/admin/users/${userId}/role`, { method: 'POST', body: JSON.stringify({ role }) })
+  }
+
+  const patchCachedUser = (userId: string, patch: Partial<User>) => {
+    setState((s) => ({
+      ...s,
+      users: s.users.map((u) => (u.id === userId ? { ...u, ...patch } : u)),
+      threads: s.threads.map((t) =>
+        t.author?.id === userId ? { ...t, author: { ...t.author, ...patch } } : t,
+      ),
+    }))
+  }
+
+  const equipNameplate: ForumContextValue['equipNameplate'] = async (patch) => {
+    if (!currentUser) return { ok: false, error: 'Please log in.' }
+    const res = await api<{ user?: User }>('/api/me/nameplate', { method: 'PATCH', body: JSON.stringify(patch) })
+    if (!res.ok) return { ok: false, error: res.error }
+    if (res.user) patchCachedUser(currentUser.id, res.user)
+    return { ok: true }
+  }
+
+  const adminNameplate: ForumContextValue['adminNameplate'] = async (userId, patch) => {
+    if (!isAdmin) return { ok: false, error: 'Admin access required.' }
+    const res = await api<{ user?: User }>(`/api/admin/users/${userId}/nameplate`, {
+      method: 'POST',
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) return { ok: false, error: res.error }
+    if (res.user) patchCachedUser(userId, res.user)
+    return { ok: true }
   }
 
   const markNotificationsRead = () => {
@@ -475,6 +516,8 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     resolveReport,
     banUser,
     setRole,
+    equipNameplate,
+    adminNameplate,
     markNotificationsRead,
     resetDemoData,
     getUser,

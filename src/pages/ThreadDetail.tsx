@@ -4,24 +4,21 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { api } from '../lib/api'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
+import { RankBadges } from '../components/RankBadges'
 import { LoginLink } from '../components/LoginModal'
 import { PostBodyView } from '../components/PostBodyView'
 import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
+import { AdRotator } from '../components/AdRotator'
 import { useForum } from '../context/ForumContext'
-import { ART } from '../data/artwork'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Comment, PostBody, Thread, User } from '../types'
 
 const PER_PAGE = 10
 
-function roleLabel(user?: User) {
-  if (!user) return null
-  if (user.role === 'admin') return { text: 'Owner', className: 'bg-[#2a7a73] text-white' }
-  if (user.role === 'moderator') return { text: 'Moderator', className: 'bg-[#b42318] text-white' }
-  return { text: 'Member', className: 'bg-[#3a3f4d] text-[#d5d8e0]' }
-}
+type ThreadComment = Comment & { author?: User | null; likeCount?: number; liked?: boolean }
 
 function MemberCard({ user }: { user?: User }) {
   const { state } = useForum()
@@ -32,19 +29,17 @@ function MemberCard({ user }: { user?: User }) {
       if (l.targetType === 'thread') return state.threads.some((t) => t.id === l.targetId && t.authorId === user?.id)
       return state.comments.some((c) => c.id === l.targetId && c.authorId === user?.id)
     }).length
-  const role = roleLabel(user)
 
   return (
     <aside className="xf-member">
       <Link to={`/profile/${user?.username}`} className="inline-block">
         <Avatar user={user} size={72} />
       </Link>
-      <Link to={`/profile/${user?.username}`} className="block mt-2 text-[13px] font-semibold gold-text hover:underline">
-        {user?.displayName}
-      </Link>
+      <div className="mt-2 text-[13px]">
+        <Username user={user} />
+      </div>
       <div className="mt-1">
-        {role && <span className={`role-pill ${role.className}`}>{role.text}</span>}
-        {user?.role !== 'user' && <span className="role-pill bg-[#1d6f9b] text-white">Staff member</span>}
+        <RankBadges user={user} showStaffTag />
       </div>
       <dl className="mt-3 text-[11px] prose-muted space-y-1 text-left">
         <div className="flex items-center gap-1.5"><Calendar size={11} /> {user ? forumTime(user.createdAt) : '—'}</div>
@@ -81,9 +76,10 @@ export function ThreadDetail() {
 
   const [thread, setThread] = useState<Thread | null>(state.threads.find((t) => t.id === id) || null)
   const [loading, setLoading] = useState(!state.threads.find((t) => t.id === id))
-  const [comments, setComments] = useState<(Comment & { author?: User | null; likeCount?: number; liked?: boolean })[]>([])
+  const [comments, setComments] = useState<ThreadComment[]>([])
   const [commentTotal, setCommentTotal] = useState(0)
-  const author = thread?.author || (thread ? getUser(thread.authorId) : undefined)
+  const authorCached = thread ? getUser(thread.authorId) : undefined
+  const author = authorCached ? { ...thread?.author, ...authorCached } : thread?.author
   const forum = thread ? state.categories.find((c) => c.id === thread.forumId) : undefined
   const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
   const [uploading, setUploading] = useState(false)
@@ -108,7 +104,7 @@ export function ThreadDetail() {
 
   useEffect(() => {
     if (!id) return
-    void api<{ comments: (Comment & { author?: User | null; likeCount?: number; liked?: boolean })[]; total: number }>(
+    void api<{ comments: ThreadComment[]; total: number }>(
       `/api/threads/${id}/comments?page=${page}&limit=${PER_PAGE}`,
     ).then((res) => {
       if (!res.ok) return
@@ -170,6 +166,7 @@ export function ThreadDetail() {
   }
 
   const canDelete = currentUser && (currentUser.id === thread.authorId || isMod)
+  const goPage = (n: number) => setParams(n <= 1 ? {} : { page: String(n) })
 
   const onComment = async (e: FormEvent) => {
     e.preventDefault()
@@ -179,8 +176,22 @@ export function ThreadDetail() {
       toast(res.error)
       return
     }
+    const posted: ThreadComment = {
+      ...res,
+      author: res.author || currentUser,
+      likeCount: 0,
+      liked: false,
+    }
+    const nextTotal = commentTotal + 1
+    const lastPage = Math.max(1, Math.ceil(nextTotal / PER_PAGE))
     setReplyBody(emptyBody())
     setQuoteParent(null)
+    setCommentTotal(nextTotal)
+    if (page !== lastPage) {
+      goPage(lastPage)
+    } else {
+      setComments((list) => (list.some((c) => c.id === posted.id) ? list : [...list, posted]))
+    }
     toast('Reply posted')
   }
 
@@ -192,8 +203,6 @@ export function ThreadDetail() {
       toast(window.location.href)
     }
   }
-
-  const goPage = (n: number) => setParams(n <= 1 ? {} : { page: String(n) })
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-3">
@@ -232,9 +241,7 @@ export function ThreadDetail() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-[12px] prose-muted">
-        <Link to={`/profile/${author?.username}`} className="gold-text font-semibold hover:underline">
-          {author?.displayName}
-        </Link>
+        <Username user={author} />
         <span>{forumTime(thread.createdAt)}</span>
         {thread.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
         {currentUser && (
@@ -261,7 +268,8 @@ export function ThreadDetail() {
 
       {pageItems.map((post, index) => {
         const number = (page - 1) * PER_PAGE + index + 1
-        const user = post.author || getUser(post.authorId)
+        const cached = getUser(post.authorId)
+        const user = cached ? { ...post.author, ...cached } : post.author
         const isOp = post.kind === 'op'
         const likedPost = post.liked
         const likeN = post.likeCount
@@ -280,9 +288,12 @@ export function ThreadDetail() {
               </div>
               <PostBodyView body={post.body} />
               {isOp && number === 1 && (
-                <a href="https://example.com/advertise" target="_blank" rel="noreferrer" className="block mt-4">
-                  <img src={ART.bannerExclusive} alt="Advertisement" className="w-full max-h-28 object-cover border border-[var(--xf-line-soft)]" />
-                </a>
+                <AdRotator
+                  slot="thread"
+                  variant="inline"
+                  className="mt-4 border border-[var(--xf-line-soft)]"
+                  heightClass="h-28 max-h-28"
+                />
               )}
               <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] prose-muted">
                 <button
@@ -345,6 +356,8 @@ export function ThreadDetail() {
                     onClick={() => {
                       if (!window.confirm('Delete this reply?')) return
                       deleteComment(post.id)
+                      setComments((list) => list.filter((c) => c.id !== post.id))
+                      setCommentTotal((n) => Math.max(0, n - 1))
                       toast('Reply deleted')
                     }}
                   >

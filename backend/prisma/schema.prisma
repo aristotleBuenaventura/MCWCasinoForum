@@ -16,6 +16,11 @@ model User {
   bio                 String    @db.Text
   avatar              String    @db.Text
   role                String    @default("user") @db.VarChar(32)
+  nameStyle           String    @default("default") @map("name_style") @db.VarChar(16)
+  membership          String    @default("member") @db.VarChar(16)
+  nameFrame           String    @default("none") @map("name_frame") @db.VarChar(24)
+  nameEmblem          String    @default("none") @map("name_emblem") @db.VarChar(24)
+  nameUnlocks         Json?     @map("name_unlocks")
   banned              Boolean   @default(false)
   failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime? @map("locked_until")

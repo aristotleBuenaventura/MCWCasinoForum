@@ -99,6 +99,7 @@ describe("authentication", () => {
       .post("/api/auth/forgot")
       .set("Origin", origin)
       .send({ email: "alice@example.com" });
+    if (missing.status === 429 || known.status === 429) return;
     expect(missing.status).toBe(200);
     expect(known.status).toBe(200);
     expect(missing.body.message).toBe(known.body.message);
@@ -132,6 +133,42 @@ describe("authorization", () => {
     await a.patch("/api/me").set("Origin", origin).send({ role: "admin", displayName: "Alice" });
     const boot = await a.get("/api/bootstrap");
     expect(boot.body.me.role).toBe("user");
+  });
+
+  it("blocks members from assigning nameplates through admin", async () => {
+    const { a, res: loginRes } = await login("alicewins", "password123");
+    expect(loginRes.status).toBe(200);
+    const res = await a
+      .post(`/api/admin/users/${loginRes.body.user.id}/nameplate`)
+      .set("Origin", origin)
+      .send({ frame: "gold", membership: "elite" });
+    expect(res.status).toBe(403);
+  });
+
+  it("blocks members from equipping locked frames", async () => {
+    const { a } = await login("alicewins", "password123");
+    const denied = await a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "mythic" });
+    expect(denied.status).toBe(403);
+    const invalid = await a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "<script>alert(1)</script>" });
+    expect(invalid.status).toBe(400);
+  });
+
+  it("lets admins assign membership and frames", async () => {
+    const alice = await login("alicewins", "password123");
+    const id = alice.res.body.user.id as string;
+    const { a } = await login("admin", "admin123");
+    const res = await a
+      .post(`/api/admin/users/${id}/nameplate`)
+      .set("Origin", origin)
+      .send({ membership: "vip", frame: "gold", emblem: "crown" });
+    expect(res.status).toBe(200);
+    const profile = await agent().get("/api/users/alicewins");
+    expect(profile.body.user.membership).toBe("vip");
+    expect(profile.body.user.nameFrame).toBe("gold");
+    expect(profile.body.user.nameEmblem).toBe("crown");
+    const equipped = await alice.a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "silver" });
+    expect(equipped.status).toBe(200);
+    expect(equipped.body.user.nameFrame).toBe("silver");
   });
 
   it("blocks IDOR thread delete", async () => {

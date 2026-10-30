@@ -2,6 +2,7 @@ import { ChevronDown, MessageCircle, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { useForum } from '../context/ForumContext'
 import { api } from '../lib/api'
@@ -106,7 +107,7 @@ export function Communities() {
                           {latest.title}
                         </Link>
                         <div className="text-[11px] prose-muted truncate">
-                          {forumTime(latest.createdAt)} · {author?.username}
+                          {forumTime(latest.createdAt)} · <Username user={author} label="username" />
                         </div>
                       </div>
                     </>

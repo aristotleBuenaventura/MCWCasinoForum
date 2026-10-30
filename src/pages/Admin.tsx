@@ -8,15 +8,30 @@ import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
 import { api } from '../lib/api'
 import { uploadImage } from '../lib/uploads'
+import { Username } from '../components/Username'
+import { RankBadges } from '../components/RankBadges'
+import {
+  MEMBERSHIP_LABELS,
+  MEMBERSHIPS,
+  NAME_EMBLEMS,
+  NAME_FRAMES,
+  parseMembership,
+  parseNameEmblem,
+  parseNameFrame,
+  type Membership,
+  type NameEmblem,
+  type NameFrame,
+} from '../lib/nameplate'
 import type { Ad, AdSlot, CmsItem, GameProvider, Report, User } from '../types'
 
-type Tab = 'ads' | 'games' | 'featured' | 'providers' | 'communities' | 'pins' | 'moderation'
+type Tab = 'ads' | 'games' | 'featured' | 'providers' | 'communities' | 'pins' | 'moderation' | 'nameplates'
 
 const SLOTS: { id: AdSlot; label: string }[] = [
   { id: 'left-1', label: 'Left ad 1' },
   { id: 'left-2', label: 'Left ad 2' },
   { id: 'left-3', label: 'Left ad 3' },
   { id: 'right-1', label: 'Right ad 1' },
+  { id: 'thread', label: 'Thread banner' },
 ]
 
 async function pickImage(file?: File) {
@@ -80,6 +95,7 @@ export function Admin() {
     deleteComment,
     banUser,
     setRole,
+    adminNameplate,
     resetDemoData,
     topCategories,
   } = useForum()
@@ -102,6 +118,8 @@ export function Admin() {
   const [stats, setStats] = useState({ users: 0, threads: 0, comments: 0, reports: 0, openReports: 0 })
   const [reports, setReports] = useState<Report[]>([])
   const [adminUsers, setAdminUsers] = useState<User[]>([])
+  const [disabledFrames, setDisabledFrames] = useState<string[]>([])
+  const [disabledEmblems, setDisabledEmblems] = useState<string[]>([])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -114,6 +132,13 @@ export function Admin() {
     void api<{ users: User[] }>('/api/admin/users').then((res) => {
       if (res.ok) setAdminUsers(res.users)
     })
+    if (tab === 'nameplates') {
+      void api<{ disabled: { frames: string[]; emblems: string[] } }>('/api/admin/nameplate').then((res) => {
+        if (!res.ok) return
+        setDisabledFrames(res.disabled.frames)
+        setDisabledEmblems(res.disabled.emblems)
+      })
+    }
   }, [isAdmin, tab])
 
   if (!currentUser || !isAdmin) {
@@ -133,6 +158,7 @@ export function Admin() {
     { id: 'communities', label: 'Communities' },
     { id: 'pins', label: 'Pins' },
     { id: 'moderation', label: 'Moderation' },
+    { id: 'nameplates', label: 'Nameplates' },
   ]
 
   const submitAd = (e: FormEvent) => {
@@ -481,6 +507,7 @@ export function Admin() {
                       setAdminUsers((list) => list.map((row) => (row.id === u.id ? { ...row, role } : row)))
                       toast(`Role set to ${role}`)
                     }}
+                    aria-label={`Role for ${u.username}`}
                   >
                     <option value="user">user</option>
                     <option value="moderator">moderator</option>
@@ -498,6 +525,128 @@ export function Admin() {
                       {u.banned ? 'Restore' : 'Remove'}
                     </button>
                   )}
+                </div>
+              </div>
+            ))}
+          </section>
+        </div>
+      )}
+
+      {tab === 'nameplates' && (
+        <div className="space-y-4">
+          <section className="forum-card p-4 space-y-3">
+            <h2 className="font-semibold">Availability</h2>
+            <p className="text-[12px] prose-muted">Disabled cosmetics cannot be equipped by members. New frames are added in code and appear here automatically.</p>
+            <div>
+              <div className="text-[12px] font-semibold mb-2">Frames</div>
+              <div className="flex flex-wrap gap-2">
+                {NAME_FRAMES.filter((id) => id !== 'none').map((id) => (
+                  <label key={id} className="inline-flex items-center gap-1.5 text-[12px]">
+                    <input
+                      type="checkbox"
+                      checked={!disabledFrames.includes(id)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? disabledFrames.filter((row) => row !== id)
+                          : [...disabledFrames, id]
+                        setDisabledFrames(next)
+                        void api('/api/admin/nameplate', {
+                          method: 'POST',
+                          body: JSON.stringify({ disabledFrames: next, disabledEmblems }),
+                        }).then((res) => toast(res.ok ? `${id} ${e.target.checked ? 'enabled' : 'disabled'}` : res.error))
+                      }}
+                    />
+                    {id}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[12px] font-semibold mb-2">Emblems</div>
+              <div className="flex flex-wrap gap-2">
+                {NAME_EMBLEMS.filter((id) => id !== 'none').map((id) => (
+                  <label key={id} className="inline-flex items-center gap-1.5 text-[12px]">
+                    <input
+                      type="checkbox"
+                      checked={!disabledEmblems.includes(id)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? disabledEmblems.filter((row) => row !== id)
+                          : [...disabledEmblems, id]
+                        setDisabledEmblems(next)
+                        void api('/api/admin/nameplate', {
+                          method: 'POST',
+                          body: JSON.stringify({ disabledFrames, disabledEmblems: next }),
+                        }).then((res) => toast(res.ok ? `${id} ${e.target.checked ? 'enabled' : 'disabled'}` : res.error))
+                      }}
+                    />
+                    {id}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </section>
+          <section className="forum-card overflow-hidden">
+            <div className="px-4 py-3 font-semibold border-b border-[var(--color-border)]">Assign to members</div>
+            {adminUsers.filter((u) => u.id !== currentUser.id).map((u) => (
+              <div key={u.id} className="p-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] border-b border-[var(--color-border)]">
+                <div className="min-w-0">
+                  <Username user={u} />
+                  <RankBadges user={u} />
+                  <div className="text-xs prose-muted">@{u.username} · {u.role}</div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="input h-7 text-[12px] w-32"
+                    value={parseMembership(u.membership)}
+                    aria-label={`Membership for ${u.username}`}
+                    onChange={(e) => {
+                      const membership = e.target.value as Membership
+                      void adminNameplate(u.id, { membership }).then((res) => {
+                        if (!res.ok) return toast(res.error)
+                        setAdminUsers((list) => list.map((row) => (row.id === u.id ? { ...row, membership } : row)))
+                        toast(`Membership set to ${MEMBERSHIP_LABELS[membership]}`)
+                      })
+                    }}
+                  >
+                    {MEMBERSHIPS.map((id) => (
+                      <option key={id} value={id}>{MEMBERSHIP_LABELS[id]}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="input h-7 text-[12px] w-28"
+                    value={parseNameFrame(u.nameFrame)}
+                    aria-label={`Frame for ${u.username}`}
+                    onChange={(e) => {
+                      const frame = e.target.value as NameFrame
+                      void adminNameplate(u.id, { frame }).then((res) => {
+                        if (!res.ok) return toast(res.error)
+                        setAdminUsers((list) => list.map((row) => (row.id === u.id ? { ...row, nameFrame: frame } : row)))
+                        toast(`Frame set to ${frame}`)
+                      })
+                    }}
+                  >
+                    {NAME_FRAMES.map((id) => (
+                      <option key={id} value={id}>{id}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="input h-7 text-[12px] w-32"
+                    value={parseNameEmblem(u.nameEmblem)}
+                    aria-label={`Emblem for ${u.username}`}
+                    onChange={(e) => {
+                      const emblem = e.target.value as NameEmblem
+                      void adminNameplate(u.id, { emblem }).then((res) => {
+                        if (!res.ok) return toast(res.error)
+                        setAdminUsers((list) => list.map((row) => (row.id === u.id ? { ...row, nameEmblem: emblem } : row)))
+                        toast(`Emblem set to ${emblem}`)
+                      })
+                    }}
+                  >
+                    {NAME_EMBLEMS.map((id) => (
+                      <option key={id} value={id}>{id}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}

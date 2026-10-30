@@ -4,6 +4,7 @@ import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
 import type { Thread } from '../types'
 import { Avatar } from './Avatar'
+import { Username } from './Username'
 import { ForumMedia } from './ForumMedia'
 import { useToast } from './Toast'
 
@@ -30,10 +31,8 @@ export function ThreadCard({ thread }: { thread: Thread }) {
       <Avatar user={author} size={40} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-          <Link to={`/profile/${author?.username}`} className="font-semibold hover:text-[var(--color-gold)]">
-            {author?.displayName ?? 'Unknown'}
-          </Link>
-          <span className="prose-muted">@{author?.username}</span>
+          <Username user={thread.author || author} />
+          <span className="prose-muted">@{author?.username || thread.author?.username}</span>
           <span className="prose-muted">· {timeAgo(thread.createdAt)}</span>
         </div>
         <Link to={`/thread/${thread.id}`} className="block mt-1">

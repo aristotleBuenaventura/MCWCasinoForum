@@ -2,6 +2,7 @@ import { ChevronDown, Pin, ThumbsUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
@@ -156,7 +157,7 @@ function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?
           ))}
         </div>
         <div className="text-[11px] prose-muted mt-0.5">
-          {author?.displayName} · {forumTime(thread.createdAt)}
+          <Username user={author} /> · {forumTime(thread.createdAt)}
           {forum && (
             <>
               {' · '}

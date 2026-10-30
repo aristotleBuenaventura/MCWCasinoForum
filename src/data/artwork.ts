@@ -24,6 +24,7 @@ export const SLOT_ART: Record<string, string> = {
   'left-2': ART.bannerRecommended,
   'left-3': ART.bannerWelcome,
   'right-1': ART.bannerExclusive,
+  thread: ART.bannerExclusive,
 }
 
 export const REVIEW_ART: Record<string, string> = {

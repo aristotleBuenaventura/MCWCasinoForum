@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
+import { RankBadges } from '../components/RankBadges'
+import { NameplatePicker } from '../components/NameplatePicker'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useToast } from '../components/Toast'
@@ -11,12 +14,12 @@ import { avatarColor, forumTime } from '../lib/utils'
 import { uploadImage } from '../lib/uploads'
 import type { Comment, Thread, User } from '../types'
 
-type Tab = 'activity' | 'postings' | 'about'
+type Tab = 'activity' | 'postings' | 'about' | 'nameplate'
 
-function memberTitle(user: User) {
-  if (user.role === 'admin') return { text: 'Owner', className: 'bg-[#2a7a73] text-white' }
-  if (user.role === 'moderator') return { text: 'Moderator', className: 'bg-[#b42318] text-white' }
-  return { text: 'Registered Member', className: 'bg-[#3a3f4d] text-[#d5d8e0]' }
+type NameplateCatalog = {
+  membership: string
+  frames: { id: string; label: string; requirement: string; unlocked: boolean; disabled: boolean; equipped: boolean }[]
+  emblems: { id: string; label: string; requirement: string; unlocked: boolean; disabled: boolean; equipped: boolean }[]
 }
 
 function snippet(text: string) {
@@ -40,6 +43,7 @@ export function Profile() {
     banUser,
     isMod,
     report,
+    equipNameplate,
   } = useForum()
 
   const cached = getUserByUsername(username || '')
@@ -58,6 +62,8 @@ export function Profile() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [deletePassword, setDeletePassword] = useState('')
+  const [catalog, setCatalog] = useState<NameplateCatalog | null>(null)
+  const [nameplateSaving, setNameplateSaving] = useState(false)
 
   useEffect(() => {
     if (!username) return
@@ -83,6 +89,13 @@ export function Profile() {
       setLoading(false)
     })
   }, [username])
+
+  useEffect(() => {
+    if (!isSelf) return
+    void api<{ catalog: NameplateCatalog }>('/api/nameplate').then((res) => {
+      if (res.ok) setCatalog(res.catalog)
+    })
+  }, [isSelf])
 
   const messages = threads.length + comments.length
 
@@ -174,7 +187,6 @@ export function Profile() {
     )
   }
 
-  const title = memberTitle(user)
   const markColor = avatarColor(user.username)
 
   const startEdit = () => {
@@ -233,8 +245,10 @@ export function Profile() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="page-title gold-text leading-tight">{user.username}</h1>
-                <span className={`role-pill mt-1 ${title.className}`}>{title.text}</span>
+                <h1 className="page-title leading-tight">
+                  <Username user={user} label="username" link={false} />
+                </h1>
+                <RankBadges user={user} />
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {isSelf ? (
@@ -306,11 +320,14 @@ export function Profile() {
         </div>
 
         <div className="xf-tabs" role="tablist">
-          {([
-            ['activity', 'Recent activity'],
-            ['postings', 'Postings'],
-            ['about', 'About'],
-          ] as const).map(([id, label]) => (
+          {(
+            [
+              ['activity', 'Recent activity'],
+              ['postings', 'Postings'],
+              ['about', 'About'],
+              ...(isSelf ? [['nameplate', 'Nameplate'] as const] : []),
+            ] as [Tab, string][]
+          ).map(([id, label]) => (
             <button
               key={id}
               type="button"
@@ -336,7 +353,7 @@ export function Profile() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] leading-snug">
-                    <span className="gold-text font-semibold">{user.username}</span>
+                    <Username user={user} label="username" />
                     {item.kind === 'thread' ? ' posted the thread ' : ' replied to the thread '}
                     <Link to={`/thread/${item.threadId}`} className="gold-text hover:underline">
                       {item.title}
@@ -391,6 +408,48 @@ export function Profile() {
             })}
             {threads.length === 0 && (
               <div className="px-4 py-6 text-center text-sm prose-muted">No threads yet.</div>
+            )}
+          </div>
+        )}
+
+        {tab === 'nameplate' && isSelf && (
+          <div className="xf-about">
+            <p className="text-[12px] prose-muted mb-3">
+              Equip unlocked frames and emblems. Locked cosmetics show the membership or staff role required.
+            </p>
+            {catalog ? (
+              <NameplatePicker
+                user={user}
+                frames={catalog.frames}
+                emblems={catalog.emblems}
+                membership={catalog.membership}
+                saving={nameplateSaving}
+                onEquip={(patch) => {
+                  setNameplateSaving(true)
+                  void equipNameplate(patch).then((res) => {
+                    setNameplateSaving(false)
+                    if (!res.ok) {
+                      toast(res.error)
+                      return
+                    }
+                    setUser((current) =>
+                      current
+                        ? {
+                            ...current,
+                            ...(patch.frame !== undefined ? { nameFrame: patch.frame } : {}),
+                            ...(patch.emblem !== undefined ? { nameEmblem: patch.emblem } : {}),
+                          }
+                        : current,
+                    )
+                    toast('Nameplate saved')
+                    void api<{ catalog: NameplateCatalog }>('/api/nameplate').then((next) => {
+                      if (next.ok) setCatalog(next.catalog)
+                    })
+                  })
+                }}
+              />
+            ) : (
+              <div className="text-sm prose-muted">Loading nameplates…</div>
             )}
           </div>
         )}
@@ -533,10 +592,10 @@ function UserList({
         <ul className="space-y-2">
           {users.map((u) => (
             <li key={u.id}>
-              <Link to={`/profile/${u.username}`} className="flex items-center gap-2 hover:text-[var(--color-gold)]">
+              <div className="flex items-center gap-2">
                 <Avatar user={u} size={24} />
-                <span className="text-[13px]">{u.username}</span>
-              </Link>
+                <Username user={u} label="username" className="text-[13px]" />
+              </div>
             </li>
           ))}
         </ul>

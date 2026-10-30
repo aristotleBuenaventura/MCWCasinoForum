@@ -7,7 +7,18 @@ import { clearAuthCookie } from "../lib/cookies.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
 import { audit } from "../lib/audit.js";
 import { mapReport, publicUser } from "../lib/serialize.js";
-import type { Role } from "../../../src/types.ts";
+import { loadDisabledNameplate, nameplateCatalog, saveDisabledNameplate } from "../lib/nameplateAccess.js";
+import {
+  MEMBERSHIPS,
+  NAME_EMBLEMS,
+  NAME_FRAMES,
+  parseMembership,
+  parseNameEmblem,
+  parseNameFrame,
+  parseUnlocks,
+  withGrantedUnlock,
+} from "../../../src/lib/nameplate.ts";
+import { AD_SLOTS, type AdSlot, type Role } from "../../../src/types.ts";
 
 export const adminRouter = Router();
 
@@ -64,6 +75,72 @@ adminRouter.post("/users/:id/role", async (req, res) => {
   await prisma.user.update({ where: { id: routeId(req) }, data: { role } });
   await audit(req, "user.role", "user", routeId(req), { role });
   res.json({ ok: true });
+});
+
+adminRouter.get("/nameplate", async (_req, res) => {
+  const disabled = await loadDisabledNameplate();
+  res.json({
+    ok: true,
+    disabled,
+    frames: NAME_FRAMES,
+    emblems: NAME_EMBLEMS,
+    memberships: MEMBERSHIPS,
+  });
+});
+
+adminRouter.post("/nameplate", async (req, res) => {
+  const body = req.body as { disabledFrames?: unknown; disabledEmblems?: unknown };
+  const frames = Array.isArray(body.disabledFrames) ? body.disabledFrames.map(String) : [];
+  const emblems = Array.isArray(body.disabledEmblems) ? body.disabledEmblems.map(String) : [];
+  await saveDisabledNameplate(frames, emblems);
+  await audit(req, "nameplate.disabled", "setting", "nameplate", { frames, emblems });
+  res.json({ ok: true, disabled: await loadDisabledNameplate() });
+});
+
+adminRouter.post("/users/:id/nameplate", async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: routeId(req) } });
+  if (!user) return res.status(404).json({ ok: false, error: "User not found." });
+  const body = req.body as {
+    membership?: unknown;
+    frame?: unknown;
+    emblem?: unknown;
+    unlockFrames?: unknown;
+    unlockEmblems?: unknown;
+  };
+  const membership = body.membership !== undefined ? parseMembership(body.membership) : parseMembership(user.membership);
+  let extra = parseUnlocks(user.nameUnlocks);
+  if (Array.isArray(body.unlockFrames) || Array.isArray(body.unlockEmblems)) {
+    extra = parseUnlocks({
+      frames: Array.isArray(body.unlockFrames) ? body.unlockFrames : extra.frames,
+      emblems: Array.isArray(body.unlockEmblems) ? body.unlockEmblems : extra.emblems,
+    });
+  }
+  const frame = body.frame !== undefined ? parseNameFrame(body.frame) : parseNameFrame(user.nameFrame);
+  const emblem = body.emblem !== undefined ? parseNameEmblem(body.emblem) : parseNameEmblem(user.nameEmblem);
+  extra = withGrantedUnlock(extra, frame, emblem);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      membership,
+      nameFrame: frame,
+      nameEmblem: emblem,
+      nameUnlocks: extra,
+    },
+  });
+  await audit(req, "user.nameplate", "user", user.id, { membership, frame, emblem });
+  const disabled = await loadDisabledNameplate();
+  res.json({
+    ok: true,
+    user: publicUser({ ...user, membership, nameFrame: frame, nameEmblem: emblem, nameUnlocks: extra }, { self: true }),
+    catalog: nameplateCatalog({
+      role: user.role,
+      membership,
+      extra,
+      frame,
+      emblem,
+      disabled,
+    }),
+  });
 });
 
 adminRouter.post("/reset", async (req, res) => {
@@ -138,6 +215,9 @@ adminRouter.post("/categories/:id/featured", async (req, res) => {
 
 adminRouter.post("/ads", async (req, res) => {
   const body = req.body as { id?: string; slot: string; imageUrl: string; url: string; title: string; order: number };
+  if (!AD_SLOTS.includes(body.slot as AdSlot)) {
+    return res.status(400).json({ ok: false, error: "Invalid ad slot." });
+  }
   if (body.id) {
     await prisma.ad.update({
       where: { id: body.id },

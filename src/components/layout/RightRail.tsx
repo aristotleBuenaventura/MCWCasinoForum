@@ -2,6 +2,7 @@ import { Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useForum } from '../../context/ForumContext'
 import { AdRotator } from '../AdRotator'
+import { Username } from '../Username'
 
 export function RightRail() {
   const { state, getUser } = useForum()
@@ -50,7 +51,7 @@ export function RightRail() {
         <ul>
           {topContributors.map(({ user, replies }) => (
             <li key={user!.id} className="px-3 py-1.5 flex items-center justify-between text-[13px]">
-              <Link to={`/profile/${user!.username}`} className="gold-text hover:underline truncate">{user!.displayName}</Link>
+              <Username user={user} className="truncate" />
               <span className="prose-muted text-[11px] tabular-nums">{replies}</span>
             </li>
           ))}

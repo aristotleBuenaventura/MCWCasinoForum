@@ -2,6 +2,7 @@ import { Bookmark, ChevronDown, ChevronUp, MessageCircle, Search, Share2, Star }
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { ForumImage } from '../components/ForumMedia'
 import { useToast } from '../components/Toast'
@@ -74,7 +75,7 @@ function FeedItem({ thread }: { thread: Thread }) {
           <p className="text-[12px] prose-muted mt-1 line-clamp-1">{thread.content}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] prose-muted">
             <Avatar user={author} size={16} />
-            <Link to={`/profile/${author?.username}`} className="hover:text-[var(--color-gold)]">{author?.username}</Link>
+            <Username user={author} label="username" />
             <span>· {timeAgo(thread.createdAt)}</span>
             <Link to={`/communities/${forum?.slug}`} className="gold-text">{forum?.name}</Link>
             {thread.solved && <span className="badge">Accepted answer</span>}
@@ -272,7 +273,7 @@ export function Home() {
                   <Link to={`/profile/${user.username}`} className="flex items-center gap-2 min-w-0">
                     <Avatar user={user} size={28} />
                     <div className="min-w-0">
-                      <div className="text-[13px] truncate">{user.displayName}</div>
+                      <div className="text-[13px] truncate"><Username user={user} link={false} /></div>
                       <div className="text-[10px] prose-muted">
                         {rank === 0 ? 'Reviewer of the Month' : rank === 1 ? 'High Roller Tier' : 'Community Voice'}
                       </div>
@@ -288,11 +289,11 @@ export function Home() {
           <div className="section-title mb-2">Big win showcases</div>
           <ul className="space-y-2">
             {bigWins.slice(0, 3).map((t) => {
-              const author = state.users.find((u) => u.id === t.authorId)
+              const author = t.author || state.users.find((u) => u.id === t.authorId)
               return (
                 <li key={t.id}>
                   <Link to={`/thread/${t.id}`} className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] line-clamp-1">{author?.displayName}</span>
+                    <span className="text-[13px] line-clamp-1"><Username user={author} link={false} /></span>
                     <span className="text-[12px] gold-text shrink-0">{t.views}</span>
                   </Link>
                 </li>

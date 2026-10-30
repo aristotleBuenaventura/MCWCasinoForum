@@ -1,4 +1,5 @@
 import type { Ad, CmsItem, Comment, ForumCategory, GameProvider, Notification, PostBody, Report, Role, Thread, User } from "../../../src/types.ts";
+import { parseMembership, parseNameEmblem, parseNameFrame, parseUnlocks } from "../../../src/lib/nameplate.ts";
 
 export function iso(value: Date | string) {
   return value instanceof Date ? value.toISOString() : String(value);
@@ -18,6 +19,10 @@ export type UserRow = {
   bio: string;
   avatar: string;
   role: string;
+  membership?: string | null;
+  nameFrame?: string | null;
+  nameEmblem?: string | null;
+  nameUnlocks?: unknown;
   banned: boolean;
   createdAt: Date;
   dateOfBirth: Date | null;
@@ -25,6 +30,7 @@ export type UserRow = {
 };
 
 export function publicUser(row: UserRow, opts: { self?: boolean } = {}): User {
+  const unlocks = parseUnlocks(row.nameUnlocks);
   return {
     id: row.id,
     username: row.username,
@@ -34,6 +40,10 @@ export function publicUser(row: UserRow, opts: { self?: boolean } = {}): User {
     bio: row.bio || "",
     avatar: row.avatar || "",
     role: row.role as Role,
+    membership: parseMembership(row.membership),
+    nameFrame: parseNameFrame(row.nameFrame),
+    nameEmblem: parseNameEmblem(row.nameEmblem),
+    nameUnlocks: opts.self ? unlocks : undefined,
     banned: Boolean(row.banned),
     createdAt: iso(row.createdAt),
     dateOfBirth: opts.self ? dateOnly(row.dateOfBirth) : undefined,

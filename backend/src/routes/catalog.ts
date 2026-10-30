@@ -283,7 +283,21 @@ catalogRouter.get("/members", async (req, res) => {
         ? { OR: [{ username: { contains: q } }, { displayName: { contains: q } }] }
         : {}),
     },
-    select: { id: true, username: true, displayName: true, avatar: true, role: true, bio: true, banned: true, createdAt: true, email: true, dateOfBirth: true },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      avatar: true,
+      role: true,
+      membership: true,
+      nameFrame: true,
+      nameEmblem: true,
+      bio: true,
+      banned: true,
+      createdAt: true,
+      email: true,
+      dateOfBirth: true,
+    },
   });
   const [threadCounts, commentCounts, likes] = await Promise.all([
     prisma.thread.groupBy({ by: ["authorId"], _count: { _all: true } }),

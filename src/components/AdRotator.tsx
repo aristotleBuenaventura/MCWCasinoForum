@@ -7,10 +7,12 @@ export function AdRotator({
   slot,
   className = '',
   heightClass = 'h-52',
+  variant = 'card',
 }: {
   slot: AdSlot
   className?: string
   heightClass?: string
+  variant?: 'card' | 'inline'
 }) {
   const { adsForSlot, state } = useForum()
   const ads = adsForSlot(slot)
@@ -27,6 +29,7 @@ export function AdRotator({
   const src = ad?.imageUrl || SLOT_ART[slot]
   const href = ad?.url
   const title = ad?.title || 'Promotion'
+  const wrap = variant === 'inline' ? 'overflow-hidden block' : 'forum-card overflow-hidden block'
 
   const inner = (
     <img src={src} alt={title} className={`w-full ${heightClass} object-cover`} />
@@ -34,10 +37,10 @@ export function AdRotator({
 
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" className={`forum-card overflow-hidden block ${className}`}>
+      <a href={href} target="_blank" rel="noreferrer" className={`${wrap} ${className}`}>
         {inner}
       </a>
     )
   }
-  return <div className={`forum-card overflow-hidden ${className}`}>{inner}</div>
+  return <div className={`${wrap} ${className}`}>{inner}</div>
 }

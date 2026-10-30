@@ -1,3 +1,5 @@
+import type { Membership, NameEmblem, NameFrame, NameUnlocks } from './lib/nameplate'
+
 export type Role = 'user' | 'moderator' | 'admin'
 
 export type MediaType = 'image' | 'video' | null
@@ -8,7 +10,8 @@ export type PostBlock =
 
 export type PostBody = PostBlock[]
 
-export type AdSlot = 'left-1' | 'left-2' | 'left-3' | 'right-1'
+export const AD_SLOTS = ['left-1', 'left-2', 'left-3', 'right-1', 'thread'] as const
+export type AdSlot = (typeof AD_SLOTS)[number]
 
 export interface User {
   id: string
@@ -19,6 +22,10 @@ export interface User {
   bio: string
   avatar: string
   role: Role
+  membership: Membership
+  nameFrame: NameFrame
+  nameEmblem: NameEmblem
+  nameUnlocks?: NameUnlocks
   banned: boolean
   createdAt: string
   dateOfBirth?: string

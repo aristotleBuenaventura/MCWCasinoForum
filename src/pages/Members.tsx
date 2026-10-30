@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { Username } from '../components/Username'
+import { rankDisplayTitle } from '../lib/nameplate'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { api } from '../lib/api'
 import { forumTime } from '../lib/utils'
@@ -32,9 +34,7 @@ function usernameBanner(user: User) {
 }
 
 function memberTitle(user: User) {
-  if (user.role === 'admin') return 'Owner'
-  if (user.role === 'moderator') return 'Moderator'
-  return 'Registered member'
+  return rankDisplayTitle(user)
 }
 
 type MemberRow = { user: User; messages: number; reactions: number; media: number; lastAt?: string }
@@ -127,11 +127,9 @@ export function Members() {
                   {list.map((row) => (
                     <li key={row.user.id} className="xf-notable-row">
                       <Avatar user={row.user} size={28} />
-                      <Link to={`/profile/${row.user.username}`} className="min-w-0">
-                        <span className="xf-name-pill" style={usernameBanner(row.user)}>
-                          {row.user.displayName}
-                        </span>
-                      </Link>
+                      <span className="xf-name-pill min-w-0" style={usernameBanner(row.user)}>
+                        <Username user={row.user} />
+                      </span>
                       <span className="xf-notable-count">{row[item.key].toLocaleString()}</span>
                     </li>
                   ))}
@@ -156,7 +154,7 @@ export function Members() {
             <div key={row.user.id} className="xf-member-list-row">
               <Link to={`/profile/${row.user.username}`} className="flex items-center gap-2 min-w-0">
                 <Avatar user={row.user} size={26} />
-                <span className="gold-text font-semibold truncate hover:underline">{row.user.username}</span>
+                <Username user={row.user} label="username" className="truncate" />
               </Link>
               <span className="prose-muted hidden sm:block truncate">{memberTitle(row.user)}</span>
               <span className="text-right tabular-nums">{row.messages.toLocaleString()}</span>
@@ -179,7 +177,7 @@ function MemberResultRow({
     <Link to={`/profile/${row.user.username}`} className="list-row flex items-center gap-3 px-3 py-2">
       <Avatar user={row.user} size={32} />
       <div className="min-w-0 flex-1">
-        <div className="gold-text font-semibold">{row.user.username}</div>
+        <Username user={row.user} label="username" link={false} />
         <div className="text-[12px] prose-muted">
           {memberTitle(row.user)} · {row.messages.toLocaleString()} messages · {row.reactions.toLocaleString()} reactions
         </div>

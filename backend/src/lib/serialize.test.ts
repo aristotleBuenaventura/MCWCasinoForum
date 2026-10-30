@@ -24,4 +24,12 @@ describe("publicUser", () => {
   it("returns email only to self", () => {
     expect(publicUser(row, { self: true }).email).toBe("alice@example.com");
   });
+  it("defaults nameplate cosmetics", () => {
+    expect(publicUser(row).membership).toBe("member");
+    expect(publicUser(row).nameFrame).toBe("none");
+    expect(publicUser(row).nameEmblem).toBe("none");
+    expect(publicUser(row).nameUnlocks).toBeUndefined();
+    expect(publicUser({ ...row, nameFrame: "gold", membership: "vip" }, { self: true }).nameFrame).toBe("gold");
+    expect(publicUser({ ...row, nameFrame: "<script>" }).nameFrame).toBe("none");
+  });
 });
