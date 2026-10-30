@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 export function Footer() {
   return (
     <footer className="site-footer mt-8">
-      <div className="max-w-[1360px] mx-auto px-4 py-8 grid sm:grid-cols-2 lg:grid-cols-6 gap-6 text-[13px]">
+      <div className="w-full px-4 py-8 grid sm:grid-cols-2 lg:grid-cols-6 gap-6 text-[13px]">
         <div className="lg:col-span-2">
           <div className="flex items-center gap-2">
             <img src="/assets/hero-crest.jpg" alt="" className="h-8 w-8 rounded object-cover" />
@@ -55,7 +55,7 @@ export function Footer() {
           </div>
         </div>
       </div>
-      <div className="max-w-[1360px] mx-auto px-4 pb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] prose-muted">
+      <div className="w-full px-4 pb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] prose-muted">
         <span>© {new Date().getFullYear()} MCW FORUM. All rights reserved.</span>
         <span>Responsible Gambling · Please play responsibly.</span>
       </div>

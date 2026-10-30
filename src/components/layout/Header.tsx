@@ -27,7 +27,7 @@ export function Header() {
 
   return (
     <header className="site-header sticky top-0 z-40">
-      <div className="max-w-[1360px] mx-auto px-3 h-12 flex items-center gap-3">
+      <div className="w-full px-3 h-12 flex items-center gap-3">
         <Link to="/" className="flex items-center gap-2 shrink-0">
           <img src="/assets/hero-crest.jpg" alt="" className="h-7 w-7 rounded object-cover" />
           <div className="leading-none">
