@@ -1,32 +1,36 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { ThreadCard } from '../components/ThreadCard'
-import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
+import type { Comment, Thread, User } from '../types'
 
 export function Search() {
   const [params, setParams] = useSearchParams()
   const initial = params.get('q') || ''
   const [q, setQ] = useState(initial)
-  const { state, getUser } = useForum()
+  const query = (params.get('q') || '').trim()
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [comments, setComments] = useState<Comment[]>([])
 
-  const query = (params.get('q') || '').trim().toLowerCase()
-
-  const results = useMemo(() => {
-    if (!query) return { threads: [], users: [], comments: [] }
-    const threads = state.threads.filter(
-      (t) => t.title.toLowerCase().includes(query) || t.content.toLowerCase().includes(query),
-    )
-    const users = state.users.filter(
-      (u) =>
-        !u.banned &&
-        (u.username.includes(query) ||
-          u.displayName.toLowerCase().includes(query) ||
-          u.bio.toLowerCase().includes(query)),
-    )
-    const comments = state.comments.filter((c) => c.content.toLowerCase().includes(query))
-    return { threads, users, comments }
-  }, [query, state.threads, state.users, state.comments])
+  useEffect(() => {
+    if (!query) {
+      setThreads([])
+      setUsers([])
+      setComments([])
+      return
+    }
+    void api<{ threads: Thread[]; users: User[]; comments: Comment[] }>(
+      `/api/search?q=${encodeURIComponent(query)}`,
+    ).then((res) => {
+      if (!res.ok) return
+      setThreads(res.threads)
+      setUsers(res.users)
+      setComments(res.comments)
+    })
+  }, [query])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -35,6 +39,7 @@ export function Search() {
 
   return (
     <div className="space-y-4">
+      <DocumentTitle title={query ? `Search: ${query} — MCW Forum` : 'Search — MCW Forum'} />
       <h1 className="page-title gold-text">Advanced Search</h1>
       <form onSubmit={onSubmit} className="forum-card p-4 flex gap-2">
         <input
@@ -53,17 +58,17 @@ export function Search() {
       {query && (
         <>
           <section className="space-y-3">
-            <h2 className="section-title">Threads ({results.threads.length})</h2>
-            {results.threads.map((t) => (
+            <h2 className="section-title">Threads ({threads.length})</h2>
+            {threads.map((t) => (
               <ThreadCard key={t.id} thread={t} />
             ))}
-            {results.threads.length === 0 && <p className="text-sm prose-muted">No threads matched.</p>}
+            {threads.length === 0 && <p className="text-sm prose-muted">No threads matched.</p>}
           </section>
 
           <section className="space-y-2">
-            <h2 className="section-title">Members ({results.users.length})</h2>
+            <h2 className="section-title">Members ({users.length})</h2>
             <div className="forum-card divide-y divide-[var(--color-border)]">
-              {results.users.map((u) => (
+              {users.map((u) => (
                 <Link key={u.id} to={`/profile/${u.username}`} className="list-row flex gap-3 p-3">
                   <Avatar user={u} />
                   <div>
@@ -72,23 +77,19 @@ export function Search() {
                   </div>
                 </Link>
               ))}
-              {results.users.length === 0 && <div className="p-4 text-sm prose-muted">No members matched.</div>}
+              {users.length === 0 && <div className="p-4 text-sm prose-muted">No members matched.</div>}
             </div>
           </section>
 
           <section className="space-y-2">
-            <h2 className="section-title">Comments ({results.comments.length})</h2>
-            <div className="space-y-2">
-              {results.comments.map((c) => {
-                const author = getUser(c.authorId)
-                return (
-                  <Link key={c.id} to={`/thread/${c.threadId}`} className="forum-card list-row p-3 block">
-                    <div className="text-sm prose-muted">@{author?.username}</div>
-                    <p className="text-sm mt-1 line-clamp-2">{c.content}</p>
-                  </Link>
-                )
-              })}
-              {results.comments.length === 0 && <p className="text-sm prose-muted">No comments matched.</p>}
+            <h2 className="section-title">Comments ({comments.length})</h2>
+            <div className="forum-card divide-y divide-[var(--color-border)]">
+              {comments.map((c) => (
+                <Link key={c.id} to={`/thread/${c.threadId}`} className="list-row block p-3">
+                  <p className="text-sm line-clamp-2">{c.content}</p>
+                </Link>
+              ))}
+              {comments.length === 0 && <div className="p-4 text-sm prose-muted">No comments matched.</div>}
             </div>
           </section>
         </>

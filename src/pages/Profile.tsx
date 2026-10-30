@@ -1,12 +1,15 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
 import { textFromBody } from '../lib/postBody'
-import { avatarColor, fileToDataUrl, forumTime } from '../lib/utils'
-import type { User } from '../types'
+import { avatarColor, forumTime } from '../lib/utils'
+import { uploadImage } from '../lib/uploads'
+import type { Comment, Thread, User } from '../types'
 
 type Tab = 'activity' | 'postings' | 'about'
 
@@ -39,38 +42,49 @@ export function Profile() {
     report,
   } = useForum()
 
-  const user = getUserByUsername(username || '')
+  const cached = getUserByUsername(username || '')
+  const [user, setUser] = useState<User | null>(cached || null)
+  const [loading, setLoading] = useState(!cached)
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [comments, setComments] = useState<Comment[]>([])
+  const [reactionScore, setReactionScore] = useState(0)
+  const [followerN, setFollowerN] = useState(0)
+  const [followingN, setFollowingN] = useState(0)
   const isSelf = !!currentUser && !!user && currentUser.id === user.id
   const [editing, setEditing] = useState(false)
   const [bio, setBio] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [tab, setTab] = useState<Tab>('activity')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
 
-  const threads = useMemo(
-    () =>
-      user
-        ? [...state.threads]
-            .filter((t) => t.authorId === user.id)
-            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-        : [],
-    [state.threads, user],
-  )
-
-  const comments = useMemo(
-    () => (user ? state.comments.filter((c) => c.authorId === user.id) : []),
-    [state.comments, user],
-  )
+  useEffect(() => {
+    if (!username) return
+    void api<{
+      user: User
+      threads: Thread[]
+      comments: Comment[]
+      reactionCount: number
+      followers: number
+      following: number
+    }>(`/api/users/${encodeURIComponent(username)}`).then((res) => {
+      if (!res.ok) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+      setUser(res.user)
+      setThreads(res.threads)
+      setComments(res.comments)
+      setReactionScore(res.reactionCount)
+      setFollowerN(res.followers)
+      setFollowingN(res.following)
+      setLoading(false)
+    })
+  }, [username])
 
   const messages = threads.length + comments.length
-
-  const reactionScore = useMemo(() => {
-    if (!user) return 0
-    const threadIds = new Set(state.threads.filter((t) => t.authorId === user.id).map((t) => t.id))
-    const commentIds = new Set(state.comments.filter((c) => c.authorId === user.id).map((c) => c.id))
-    return state.likes.filter((l) =>
-      l.targetType === 'thread' ? threadIds.has(l.targetId) : commentIds.has(l.targetId),
-    ).length
-  }, [state.comments, state.likes, state.threads, user])
 
   const lastSeen = useMemo(() => {
     if (isSelf) return 'Now'
@@ -145,6 +159,10 @@ export function Profile() {
     [state.follows, state.users, user],
   )
 
+  if (loading) {
+    return <div className="forum-card p-6 text-center prose-muted">Loading profile…</div>
+  }
+
   if (!user || user.banned) {
     return (
       <div className="forum-card p-6 text-center">
@@ -176,7 +194,7 @@ export function Profile() {
   const onAvatar = async (file?: File) => {
     if (!file) return
     try {
-      const url = await fileToDataUrl(file, 1_500_000)
+      const url = await uploadImage(file)
       updateProfile({ avatar: url })
       toast('Avatar updated')
     } catch (err) {
@@ -186,6 +204,7 @@ export function Profile() {
 
   return (
     <div>
+      <DocumentTitle title={`${user.displayName} (@${user.username}) — MCW Forum`} description={user.bio || `${user.displayName} on MCW Casino Forum.`} />
       <nav className="text-[12px] prose-muted mb-2">
         <Link to="/" className="gold-text hover:underline">Home</Link>
         {' > '}
@@ -410,11 +429,11 @@ export function Profile() {
                   </div>
                   <div>
                     <dt>Followers</dt>
-                    <dd>{followerCount(user.id)}</dd>
+                    <dd>{followerN || followerCount(user.id)}</dd>
                   </div>
                   <div>
                     <dt>Following</dt>
-                    <dd>{followingCount(user.id)}</dd>
+                    <dd>{followingN || followingCount(user.id)}</dd>
                   </div>
                 </dl>
                 <div className="mt-4">
@@ -425,6 +444,66 @@ export function Profile() {
                   <div className="mt-5 grid sm:grid-cols-2 gap-4">
                     <UserList title="Followers" users={followers as User[]} empty="No followers yet." />
                     <UserList title="Following" users={following as User[]} empty="Not following anyone yet." />
+                  </div>
+                )}
+                {isSelf && (
+                  <div className="mt-6 space-y-4 border-t border-[var(--color-border)] pt-4">
+                    <h2 className="text-[13px] font-semibold">Account</h2>
+                    <form
+                      className="space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void api('/api/auth/password', {
+                          method: 'POST',
+                          body: JSON.stringify({ currentPassword, newPassword }),
+                        }).then((res) => {
+                          toast(res.ok ? 'Password updated' : res.error)
+                          if (res.ok) {
+                            setCurrentPassword('')
+                            setNewPassword('')
+                          }
+                        })
+                      }}
+                    >
+                      <input
+                        className="input"
+                        type="password"
+                        placeholder="Current password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                      />
+                      <input
+                        className="input"
+                        type="password"
+                        placeholder="New password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+                      <button type="submit" className="btn btn-secondary">Change password</button>
+                    </form>
+                    <form
+                      className="space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        if (!window.confirm('Delete your account permanently?')) return
+                        void api('/api/auth/account', {
+                          method: 'DELETE',
+                          body: JSON.stringify({ password: deletePassword }),
+                        }).then((res) => {
+                          toast(res.ok ? 'Account deleted' : res.error)
+                          if (res.ok) window.location.href = '/'
+                        })
+                      }}
+                    >
+                      <input
+                        className="input"
+                        type="password"
+                        placeholder="Password to confirm deletion"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                      />
+                      <button type="submit" className="btn btn-danger">Delete account</button>
+                    </form>
                   </div>
                 )}
               </>

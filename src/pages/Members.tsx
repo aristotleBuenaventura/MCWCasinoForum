@@ -1,8 +1,8 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
-import { useForum } from '../context/ForumContext'
-import { imageCount } from '../lib/postBody'
+import { DocumentTitle } from '../components/DocumentTitle'
+import { api } from '../lib/api'
 import { forumTime } from '../lib/utils'
 import type { User } from '../types'
 
@@ -37,37 +37,23 @@ function memberTitle(user: User) {
   return 'Registered member'
 }
 
+type MemberRow = { user: User; messages: number; reactions: number; media: number; lastAt?: string }
+
 export function Members() {
-  const { state } = useForum()
   const [params, setParams] = useSearchParams()
   const [q, setQ] = useState(params.get('username') || '')
   const listKey = (params.get('key') as BoardKey | null) || null
   const query = (params.get('username') || '').trim().toLowerCase()
+  const [rows, setRows] = useState<MemberRow[]>([])
 
-  const rows = useMemo(() => {
-    const active = state.users.filter((u) => !u.banned)
-    return active.map((user) => {
-      const threads = state.threads.filter((t) => t.authorId === user.id)
-      const comments = state.comments.filter((c) => c.authorId === user.id)
-      const threadIds = new Set(threads.map((t) => t.id))
-      const commentIds = new Set(comments.map((c) => c.id))
-      const reactions = state.likes.filter((l) =>
-        l.targetType === 'thread' ? threadIds.has(l.targetId) : commentIds.has(l.targetId),
-      ).length
-      const media =
-        threads.reduce((n, t) => n + imageCount(t.body) + (t.mediaUrl && imageCount(t.body) === 0 ? 1 : 0), 0) +
-        comments.reduce((n, c) => n + imageCount(c.body), 0)
-      const lastAt = [...threads.map((t) => t.createdAt), ...comments.map((c) => c.createdAt)]
-        .sort((a, b) => +new Date(b) - +new Date(a))[0] || user.createdAt
-      return {
-        user,
-        messages: threads.length + comments.length,
-        reactions,
-        media,
-        lastAt,
-      }
+  useEffect(() => {
+    const key = listKey || 'messages'
+    const qs = new URLSearchParams({ key })
+    if (query) qs.set('username', query)
+    void api<{ members: MemberRow[] }>(`/api/members?${qs}`).then((res) => {
+      if (res.ok) setRows(res.members)
     })
-  }, [state.comments, state.likes, state.threads, state.users])
+  }, [listKey, query])
 
   const ranked = (key: BoardKey) =>
     [...rows].sort((a, b) => b[key] - a[key] || a.user.username.localeCompare(b.user.username))
@@ -90,6 +76,7 @@ export function Members() {
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-3">
+      <DocumentTitle title="Leaderboards — MCW Forum" description="Top members by messages, reactions, and media." />
       <div className="text-[12px] prose-muted">
         <Link to="/" className="gold-text hover:underline">Home</Link>
         {' > '}
@@ -165,7 +152,7 @@ export function Members() {
             <span className="text-right hidden md:block">Reaction score</span>
             <span className="text-right hidden lg:block">Joined</span>
           </div>
-          {ranked(listKey).map((row) => (
+          {ranked(listKey || 'messages').map((row) => (
             <div key={row.user.id} className="xf-member-list-row">
               <Link to={`/profile/${row.user.username}`} className="flex items-center gap-2 min-w-0">
                 <Avatar user={row.user} size={26} />

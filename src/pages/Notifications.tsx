@@ -1,33 +1,36 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
 import { timeAgo } from '../lib/utils'
+import type { Notification } from '../types'
 
 export function Notifications() {
-  const { currentUser, state, markNotificationsRead } = useForum()
+  const { currentUser, markNotificationsRead } = useForum()
+  const [items, setItems] = useState<Notification[]>([])
 
   useEffect(() => {
+    if (!currentUser) return
+    void api<{ notifications: Notification[] }>('/api/notifications').then((res) => {
+      if (res.ok) setItems(res.notifications)
+    })
     markNotificationsRead()
-    // Intentionally run once on mount so opening the page clears unread badges.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [currentUser, markNotificationsRead])
 
   if (!currentUser) {
     return (
       <div className="forum-card p-6 text-center">
         <p className="prose-muted">Log in to see notifications.</p>
-        <LoginLink className="btn btn-primary mt-3 inline-flex">
-          Log in
-        </LoginLink>
+        <LoginLink className="btn btn-primary mt-3 inline-flex">Log in</LoginLink>
       </div>
     )
   }
 
-  const items = state.notifications.filter((n) => n.userId === currentUser.id)
-
   return (
     <div className="space-y-4">
+      <DocumentTitle title="Notifications — MCW Forum" />
       <h1 className="page-title gold-text">Notifications</h1>
       <div className="forum-card divide-y divide-[var(--color-border)]">
         {items.map((n) => (

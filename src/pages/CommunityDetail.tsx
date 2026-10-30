@@ -1,9 +1,11 @@
 import { ChevronDown, Pin, ThumbsUp } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
 
@@ -14,22 +16,21 @@ export function CommunityDetail() {
   const [params, setParams] = useSearchParams()
   const [filtersOpen, setFiltersOpen] = useState(false)
   const sort = ((params.get('sort') as SortKey) || 'latest')
-  const { getCategoryBySlug, childCategories, state, currentUser, likeCount } = useForum()
+  const { getCategoryBySlug, childCategories, state, currentUser, cacheThreads } = useForum()
   const category = getCategoryBySlug(slug || '')
   const children = category ? childCategories(category.id) : []
+  const [threads, setThreads] = useState<Thread[]>([])
 
-  const threads = useMemo(() => {
-    if (!category) return []
-    const ids = [category.id, ...children.map((c) => c.id)]
-    const list = state.threads.filter((t) => ids.includes(t.forumId))
-    if (sort === 'popular') {
-      return [...list].sort((a, b) => likeCount('thread', b.id) - likeCount('thread', a.id) || +new Date(b.createdAt) - +new Date(a.createdAt))
-    }
-    if (sort === 'pinned') {
-      return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.createdAt) - +new Date(a.createdAt))
-    }
-    return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.updatedAt) - +new Date(a.updatedAt))
-  }, [state.threads, category, children, sort, likeCount])
+  useEffect(() => {
+    if (!slug) return
+    const sortKey = sort === 'pinned' ? 'latest' : sort
+    void api<{ threads: Thread[] }>(`/api/threads?forum=${encodeURIComponent(slug)}&sort=${sortKey}&limit=40`).then((res) => {
+      if (!res.ok) return
+      const list = sort === 'pinned' ? res.threads.filter((t) => t.pinned) : res.threads
+      setThreads(list)
+      cacheThreads(list)
+    })
+  }, [slug, sort, cacheThreads])
 
   if (!category) {
     return (
@@ -51,6 +52,7 @@ export function CommunityDetail() {
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-2">
+      <DocumentTitle title={`${category.name} — MCW Forum`} description={category.description} />
       <div className="text-[12px] prose-muted">
         <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
         {parent && (
@@ -126,15 +128,13 @@ export function CommunityDetail() {
 }
 
 function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?: boolean }) {
-  const { getUser, state, likeCount } = useForum()
-  const author = getUser(thread.authorId)
-  const replies = state.comments.filter((c) => c.threadId === thread.id)
-  const last = [...replies].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
-  const lastUser = last ? getUser(last.authorId) : author
-  const lastAt = last?.createdAt || thread.updatedAt
-  const likes = likeCount('thread', thread.id)
+  const { state } = useForum()
+  const author = thread.author
+  const lastUser = author
+  const lastAt = thread.updatedAt
+  const likes = thread.likeCount || 0
   const forum = state.categories.find((c) => c.id === thread.forumId)
-  const pages = Math.max(1, Math.ceil((replies.length + 1) / 10))
+  const pages = Math.max(1, Math.ceil(((thread.replyCount || 0) + 1) / 10))
   const pageNumbers = pages <= 1 ? [] : pages <= 4
     ? Array.from({ length: pages }, (_, i) => i + 1)
     : [pages - 2, pages - 1, pages]
@@ -171,7 +171,7 @@ function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?
         </div>
       </div>
       <div className="stat-col text-[12px] leading-tight">
-        <div>Replies: <span className="text-[var(--color-ink)]">{compactNumber(replies.length)}</span></div>
+        <div>Replies: <span className="text-[var(--color-ink)]">{compactNumber(thread.replyCount || 0)}</span></div>
         <div className="prose-muted">Views: {compactNumber(thread.views)}</div>
       </div>
       <div className="last-col min-w-0 flex items-center justify-end gap-2 text-right">

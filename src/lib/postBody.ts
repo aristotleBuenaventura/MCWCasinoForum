@@ -1,4 +1,3 @@
-import { putMedia } from './media'
 import { uid } from './utils'
 import type { Comment, PostBody, Thread } from '../types'
 
@@ -76,20 +75,13 @@ export function ensureCommentBody(comment: Omit<Comment, 'body'> & { body?: Post
   return { ...comment, body: legacyBody(comment.content) }
 }
 
-export async function persistBodyImages(ownerId: string, body: PostBody): Promise<PostBody> {
-  const next: PostBody = []
-  for (const block of body) {
-    if (block.type === 'image' && block.url.startsWith('data:')) {
-      const key = `${ownerId}_${block.id}`
-      try {
-        await putMedia(key, block.url)
-        next.push({ ...block, url: `idb:${key}` })
-      } catch {
-        next.push(block)
+export async function persistBodyImages(_ownerId: string, body: PostBody): Promise<PostBody> {
+  return normalizeBody(
+    body.map((block) => {
+      if (block.type === 'image' && (block.url.startsWith('data:') || block.url.startsWith('idb:'))) {
+        return { ...block, url: '' }
       }
-    } else {
-      next.push(block)
-    }
-  }
-  return normalizeBody(next)
+      return block
+    }),
+  )
 }

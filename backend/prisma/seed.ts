@@ -10,6 +10,12 @@ export async function seedForum() {
   await prisma.report.deleteMany();
   await prisma.like.deleteMany();
   await prisma.follow.deleteMany();
+  await prisma.bookmark.deleteMany();
+  await prisma.threadRead.deleteMany();
+  await prisma.threadRevision.deleteMany();
+  await prisma.authToken.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.rateBucket.deleteMany();
   await prisma.comment.updateMany({ data: { parentId: null } });
   await prisma.comment.deleteMany();
   await prisma.thread.deleteMany();
@@ -35,6 +41,7 @@ export async function seedForum() {
         avatar: user.avatar,
         role: user.role,
         banned: user.banned,
+        emailVerifiedAt: new Date(),
         createdAt: new Date(user.createdAt),
         dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth) : null,
       },
@@ -170,6 +177,9 @@ export async function seedForum() {
 }
 
 export async function seedIfEmpty() {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "true") {
+    return;
+  }
   const count = await prisma.user.count();
   if (count > 0) return;
   await seedForum();

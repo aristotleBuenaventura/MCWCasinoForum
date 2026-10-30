@@ -2,6 +2,7 @@ import { Eye, EyeOff, Lock, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
 import { useToast } from './Toast'
 
 export function LoginLink({ children, className }: { children: ReactNode; className?: string }) {
@@ -21,6 +22,7 @@ export function LoginModal() {
   const [showPassword, setShowPassword] = useState(false)
   const [stayLoggedIn, setStayLoggedIn] = useState(true)
   const [forgot, setForgot] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -118,9 +120,29 @@ export function LoginModal() {
                 Forgot your password?
               </button>
               {forgot && (
-                <p className="xf-reg-hint mt-1">
-                  Password reset is not enabled. Contact an administrator if you need access.
-                </p>
+                <div className="mt-2 space-y-2">
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="Account email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary text-xs"
+                    onClick={() => {
+                      void api('/api/auth/forgot', {
+                        method: 'POST',
+                        body: JSON.stringify({ email: resetEmail || usernameOrEmail }),
+                      }).then((res) => {
+                        toast(res.ok ? 'If that email is registered, a reset link was sent.' : res.error)
+                      })
+                    }}
+                  >
+                    Send reset link
+                  </button>
+                </div>
               )}
               <label className="xf-check">
                 <input

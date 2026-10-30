@@ -22,6 +22,7 @@ export function CreateThread() {
 
   const [forumId, setForumId] = useState(defaultForum)
   const [title, setTitle] = useState('')
+  const [tags, setTags] = useState('')
   const [body, setBody] = useState(emptyBody)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -50,7 +51,12 @@ export function CreateThread() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (uploading) return
-    const res = await createThread({ forumId, title, body })
+    const res = await createThread({
+      forumId,
+      title,
+      body,
+      tags: tags.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 6),
+    })
     if ('error' in res) {
       setError(res.error)
       return
@@ -106,11 +112,24 @@ export function CreateThread() {
             />
           </div>
         </div>
+        <div className="xf-form-row">
+          <label htmlFor="thread-tags">Tags</label>
+          <div>
+            <input
+              id="thread-tags"
+              className="input"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="rtp, bonus, optional"
+            />
+            <p className="text-[11px] prose-muted mt-1">Comma-separated, up to 6 tags.</p>
+          </div>
+        </div>
         <PostComposer
           value={body}
           onChange={setBody}
           onBusyChange={setUploading}
-          placeholder="Write your message..."
+          placeholder="Write your message. Use @username to mention someone."
         />
         {error && <p className="text-[12px] text-[var(--color-danger)] px-3 py-2">{error}</p>}
         <div className="xf-form-actions">

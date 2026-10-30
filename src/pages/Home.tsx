@@ -1,13 +1,15 @@
-import { ChevronDown, ChevronUp, MessageCircle, Search, Share2, Star } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Bookmark, ChevronDown, ChevronUp, MessageCircle, Search, Share2, Star } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { ForumImage } from '../components/ForumMedia'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
 import { ART, CATEGORY_LOGOS, GUIDE_ART, REVIEW_ART, WIN_ART } from '../data/artwork'
 import { timeAgo } from '../lib/utils'
-import type { Thread } from '../types'
+import type { Thread, User } from '../types'
 
 type FeedTab = 'popular' | 'trending' | 'latest' | 'saved'
 
@@ -23,13 +25,14 @@ function Stars({ value = 4.8 }: { value?: number }) {
 }
 
 function FeedItem({ thread }: { thread: Thread }) {
-  const { getUser, state, likeCount, isLiked, toggleLike, currentUser } = useForum()
+  const { state, toggleLike, currentUser, toggleBookmark } = useForum()
   const toast = useToast()
-  const author = getUser(thread.authorId)
+  const [liked, setLiked] = useState(!!thread.liked)
+  const [likes, setLikes] = useState(thread.likeCount || 0)
+  const [saved, setSaved] = useState(!!thread.bookmarked)
+  const author = thread.author
   const forum = state.categories.find((c) => c.id === thread.forumId)
-  const replies = state.comments.filter((c) => c.threadId === thread.id).length
-  const likes = likeCount('thread', thread.id)
-  const liked = isLiked('thread', thread.id)
+  const replies = thread.replyCount || 0
   const rating = thread.forumId === 'cat_pragmatic' ? 4.8 : null
 
   const vote = () => {
@@ -37,6 +40,8 @@ function FeedItem({ thread }: { thread: Thread }) {
       toast('Log in to vote')
       return
     }
+    setLiked((v) => !v)
+    setLikes((n) => n + (liked ? -1 : 1))
     toggleLike('thread', thread.id)
   }
 
@@ -80,6 +85,19 @@ function FeedItem({ thread }: { thread: Thread }) {
             <button type="button" className="inline-flex items-center gap-1 hover:text-[var(--color-gold)]" onClick={share}>
               <Share2 size={12} /> Share
             </button>
+            {currentUser && (
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1 ${saved ? 'text-[var(--color-gold)]' : ''}`}
+                onClick={() => {
+                  void toggleBookmark(thread.id).then((on) => setSaved(on))
+                }}
+                aria-label="Bookmark"
+              >
+                <Bookmark size={12} />
+              </button>
+            )}
+            {thread.unread && currentUser && <span className="text-[var(--color-gold)]">Unread</span>}
           </div>
         </div>
       </div>
@@ -88,63 +106,68 @@ function FeedItem({ thread }: { thread: Thread }) {
 }
 
 export function Home() {
-  const { state, currentUser, likeCount } = useForum()
+  const { state, currentUser, memberCount, cacheThreads, cacheUsers } = useForum()
   const [params] = useSearchParams()
   const tab = ((params.get('feed') as FeedTab) || 'latest')
   const [reviewQuery, setReviewQuery] = useState('')
-  const members = state.users.filter((u) => !u.banned).length
+  const [feed, setFeed] = useState<Thread[]>([])
+  const [reviews, setReviews] = useState<Thread[]>([])
+  const [guides, setGuides] = useState<Thread[]>([])
+  const [bigWins, setBigWins] = useState<Thread[]>([])
+  const [weekly, setWeekly] = useState<{ user: User | null; replies: number }[]>([])
+  const [feedReady, setFeedReady] = useState(false)
+  const members = memberCount
 
-  const engagement = (t: Thread) =>
-    likeCount('thread', t.id) + state.comments.filter((c) => c.threadId === t.id).length
-
-  const feed = useMemo(() => {
-    const skip = new Set(['cat_guides', 'cat_bigwins', 'cat_responsible'])
-    let list = state.threads.filter((t) => !skip.has(t.forumId))
-    const spotlight = ['thread_mahjong', 'thread_cashout', 'thread_olympus']
-    if (tab === 'latest') {
-      const picked = spotlight.map((id) => list.find((t) => t.id === id)).filter(Boolean) as Thread[]
-      if (picked.length) return picked
-    }
-    if (tab === 'saved' && currentUser) {
-      const liked = new Set(
-        state.likes.filter((l) => l.userId === currentUser.id && l.targetType === 'thread').map((l) => l.targetId),
+  useEffect(() => {
+    setFeedReady(false)
+    void api<{
+      feed: { threads: Thread[] }
+      reviews: Thread[]
+      guides: Thread[]
+      wins: Thread[]
+      weekly: { user: User | null; replies: number }[]
+    }>(`/api/home?tab=${encodeURIComponent(tab)}`).then((res) => {
+      if (!res.ok) {
+        setFeedReady(true)
+        return
+      }
+      setFeed(res.feed.threads)
+      setReviews(res.reviews)
+      setGuides(res.guides)
+      setBigWins(res.wins)
+      setWeekly(res.weekly)
+      cacheThreads([...res.feed.threads, ...res.reviews, ...res.guides, ...res.wins])
+      cacheUsers(
+        [...res.feed.threads, ...res.reviews, ...res.guides, ...res.wins]
+          .map((t) => t.author)
+          .filter((u): u is User => Boolean(u)),
       )
-      list = list.filter((t) => liked.has(t.id))
-    }
-    if (tab === 'popular') list.sort((a, b) => engagement(b) - engagement(a))
-    else if (tab === 'trending') {
-      list.sort((a, b) => engagement(b) * 2 - (+new Date(b.createdAt) - +new Date(a.createdAt)) / 3.6e6)
-    } else {
-      list.sort((a, b) => Number(b.pinned) - Number(a.pinned) || +new Date(b.createdAt) - +new Date(a.createdAt))
-    }
-    return list.slice(0, 3)
-  }, [state.threads, state.likes, state.comments, tab, currentUser])
+      setFeedReady(true)
+    })
+  }, [tab, cacheThreads, cacheUsers])
 
-  const reviews = ['thread_spin_palace', 'thread_casino_royale', 'thread_mega_jackpot']
-    .map((id) => state.threads.find((t) => t.id === id))
-    .filter((t): t is Thread => !!t)
-    .filter((t) => t.title.toLowerCase().includes(reviewQuery.toLowerCase()) || t.tags.some((tag) => tag.toLowerCase().includes(reviewQuery.toLowerCase())))
-
-  const guides = state.threads.filter((t) => t.forumId === 'cat_guides').slice(0, 3)
-  const bigWins = state.threads.filter((t) => t.forumId === 'cat_bigwins').slice(0, 6)
+  const filteredReviews = reviews.filter(
+    (t) =>
+      t.title.toLowerCase().includes(reviewQuery.toLowerCase()) ||
+      t.tags.some((tag) => tag.toLowerCase().includes(reviewQuery.toLowerCase())),
+  )
   const providers = [...state.providers].sort((a, b) => a.order - b.order)
 
-  const replyCounts = new Map<string, number>()
-  for (const c of state.comments) replyCounts.set(c.authorId, (replyCounts.get(c.authorId) ?? 0) + 1)
-  const weekly = [...replyCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([id, replies], i) => ({ user: state.users.find((u) => u.id === id), replies, rank: i }))
-
+  const countFor = (...ids: string[]) =>
+    state.categories.filter((c) => ids.includes(c.id)).reduce((n, c) => n + c.threadCount, 0)
   const activity = [
-    { name: 'JILI Games', count: state.threads.filter((t) => t.forumId === 'cat_jili').length },
-    { name: 'RTP Discussions', count: state.threads.filter((t) => t.forumId === 'cat_rtp' || t.forumId === 'cat_pragmatic').length },
-    { name: 'Casino Reviews', count: state.threads.filter((t) => t.forumId === 'cat_reviews').length },
+    { name: 'JILI Games', count: countFor('cat_jili') },
+    { name: 'RTP Discussions', count: countFor('cat_rtp', 'cat_pragmatic') },
+    { name: 'Casino Reviews', count: countFor('cat_reviews') },
   ]
   const maxActivity = Math.max(...activity.map((a) => a.count), 1)
 
   return (
     <div className="space-y-3">
+      <DocumentTitle
+        title="MCW Casino Forum"
+        description="Discuss slots, casino reviews, RTP, and bonuses with a verified player community."
+      />
       <section className="forum-card overflow-hidden">
         <div className="flex items-center gap-4 px-4 py-3">
           <img src={ART.hero} alt="MCW casino crest" className="h-[88px] w-[88px] rounded-full object-cover shrink-0 border border-[#d7ae55]/40" />
@@ -180,10 +203,11 @@ export function Home() {
       </section>
 
       <section className="space-y-2">
-        {feed.map((t) => <FeedItem key={t.id} thread={t} />)}
-        {feed.length === 0 && (
+        {!feedReady && <div className="forum-card p-5 text-center prose-muted text-sm">Loading discussions…</div>}
+        {feedReady && feed.map((t) => <FeedItem key={t.id} thread={t} />)}
+        {feedReady && feed.length === 0 && (
           <div className="forum-card p-5 text-center prose-muted text-sm">
-            {tab === 'saved' ? 'Like threads to save them here.' : 'No threads yet.'}
+            {tab === 'saved' ? 'Bookmark threads to save them here.' : 'No threads yet.'}
           </div>
         )}
       </section>
@@ -205,7 +229,7 @@ export function Home() {
           </div>
         </div>
         <div className="grid md:grid-cols-3 gap-2">
-          {reviews.map((t) => (
+          {filteredReviews.map((t) => (
             <Link key={t.id} to={`/thread/${t.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
               <ForumImage url={t.mediaUrl} fallback={REVIEW_ART[t.id]} className="h-24 w-full object-cover" />
               <div className="p-2.5">
@@ -242,7 +266,7 @@ export function Home() {
         <div className="forum-card p-3">
           <div className="section-title mb-2">Weekly top contributors</div>
           <ul className="space-y-2">
-            {weekly.map(({ user, replies, rank }) =>
+            {weekly.map(({ user, replies }, rank) =>
               user ? (
                 <li key={user.id} className="flex items-center justify-between gap-2">
                   <Link to={`/profile/${user.username}`} className="flex items-center gap-2 min-w-0">

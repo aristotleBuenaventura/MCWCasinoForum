@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/api'
-import { firstImageUrl, isBodyEmpty, persistBodyImages, textFromBody } from '../lib/postBody'
+import { isBodyEmpty, persistBodyImages, textFromBody } from '../lib/postBody'
 import type {
   Ad,
   AdSlot,
@@ -36,6 +36,7 @@ type CreateThreadInput = {
   forumId: string
   title: string
   body: PostBody
+  tags?: string[]
 }
 
 type CategoryInput = {
@@ -48,6 +49,17 @@ type CategoryInput = {
   order: number
 }
 
+type Bootstrap = {
+  me: User | null
+  unreadCount: number
+  memberCount: number
+  categories: ForumCategory[]
+  ads: Ad[]
+  trendingGames: CmsItem[]
+  providers: GameProvider[]
+  adRotateSec: number
+}
+
 type ForumContextValue = {
   state: ForumState
   ready: boolean
@@ -56,11 +68,13 @@ type ForumContextValue = {
   currentUser: User | null
   isMod: boolean
   isAdmin: boolean
+  memberCount: number
   register: (input: RegisterInput) => Promise<{ ok: true } | { ok: false; error: string }>
   login: (
     usernameOrEmail: string,
     password: string,
     stayLoggedIn?: boolean,
+    turnstileToken?: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   logout: () => void
   loginOpen: boolean
@@ -68,7 +82,7 @@ type ForumContextValue = {
   closeLogin: () => void
   updateProfile: (patch: Partial<Pick<User, 'displayName' | 'bio' | 'avatar'>>) => void
   createThread: (input: CreateThreadInput) => Promise<Thread | { error: string }>
-  updateThread: (id: string, patch: Partial<Pick<Thread, 'title' | 'content' | 'body' | 'mediaUrl' | 'mediaType'>>) => void
+  updateThread: (id: string, patch: Partial<Pick<Thread, 'title' | 'content' | 'body' | 'mediaUrl' | 'mediaType' | 'tags'>>) => void
   deleteThread: (id: string) => void
   togglePin: (id: string) => void
   bumpViews: (id: string) => void
@@ -81,12 +95,13 @@ type ForumContextValue = {
   isFollowing: (userId: string) => boolean
   followerCount: (userId: string) => number
   followingCount: (userId: string) => number
+  toggleBookmark: (threadId: string) => Promise<boolean>
   report: (targetType: 'thread' | 'comment' | 'user', targetId: string, reason: string) => void
   resolveReport: (id: string) => void
   banUser: (userId: string, banned?: boolean) => void
   setRole: (userId: string, role: Role) => void
   markNotificationsRead: () => void
-  resetDemoData: () => void
+  resetDemoData: () => Promise<{ ok: true } | { ok: false; error: string }>
   getUser: (id: string) => User | undefined
   getUserByUsername: (username: string) => User | undefined
   getCategoryBySlug: (slug: string) => ForumCategory | undefined
@@ -105,6 +120,8 @@ type ForumContextValue = {
   saveProvider: (item: Omit<GameProvider, 'id'> & { id?: string }) => void
   deleteProvider: (id: string) => void
   unreadCount: number
+  cacheUsers: (users: User[]) => void
+  cacheThreads: (threads: Thread[]) => void
 }
 
 const emptyState: ForumState = {
@@ -130,15 +147,32 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [bootError, setBootError] = useState('')
   const [loginOpen, setLoginOpen] = useState(false)
+  const [memberCount, setMemberCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
   const openLogin = useCallback(() => setLoginOpen(true), [])
   const closeLogin = useCallback(() => setLoginOpen(false), [])
 
-  const refresh = useCallback(async () => {
-    const res = await api<{ state: ForumState }>('/api/state')
-    if (!res.ok) throw new Error(res.error)
-    setState(res.state)
-    setBootError('')
+  const applyBootstrap = useCallback((boot: Bootstrap) => {
+    setMemberCount(boot.memberCount)
+    setUnreadCount(boot.unreadCount)
+    setState((s) => ({
+      ...s,
+      categories: boot.categories,
+      ads: boot.ads,
+      trendingGames: boot.trendingGames,
+      providers: boot.providers,
+      adRotateSec: boot.adRotateSec,
+      currentUserId: boot.me?.id ?? null,
+      users: boot.me ? [boot.me, ...s.users.filter((u) => u.id !== boot.me!.id)] : s.users,
+    }))
   }, [])
+
+  const refresh = useCallback(async () => {
+    const res = await api<Bootstrap>('/api/bootstrap')
+    if (!res.ok) throw new Error(res.error)
+    applyBootstrap(res)
+    setBootError('')
+  }, [applyBootstrap])
 
   const retry = useCallback(() => {
     setReady(false)
@@ -171,37 +205,40 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const isMod = !!currentUser && (currentUser.role === 'moderator' || currentUser.role === 'admin')
   const isAdmin = !!currentUser && currentUser.role === 'admin'
 
-  const unreadCount = useMemo(
-    () =>
-      currentUser
-        ? state.notifications.filter((n) => n.userId === currentUser.id && !n.read).length
-        : 0,
-    [state.notifications, currentUser],
-  )
+  const cacheUsers = useCallback((users: User[]) => {
+    setState((s) => {
+      const map = new Map(s.users.map((u) => [u.id, u]))
+      for (const u of users) if (u) map.set(u.id, u)
+      return { ...s, users: [...map.values()] }
+    })
+  }, [])
+
+  const cacheThreads = useCallback((threads: Thread[]) => {
+    setState((s) => {
+      const map = new Map(s.threads.map((t) => [t.id, t]))
+      for (const t of threads) map.set(t.id, t)
+      return { ...s, threads: [...map.values()] }
+    })
+  }, [])
 
   const getUser = useCallback((id: string) => state.users.find((u) => u.id === id), [state.users])
-
   const getUserByUsername = useCallback(
     (username: string) => state.users.find((u) => u.username.toLowerCase() === username.toLowerCase()),
     [state.users],
   )
-
   const getCategoryBySlug = useCallback(
     (slug: string) => state.categories.find((c) => c.slug === slug),
     [state.categories],
   )
-
   const childCategories = useCallback(
     (parentId: string) =>
       [...state.categories].filter((c) => c.parentId === parentId).sort((a, b) => a.order - b.order),
     [state.categories],
   )
-
   const topCategories = useMemo(
     () => [...state.categories].filter((c) => !c.parentId).sort((a, b) => a.order - b.order),
     [state.categories],
   )
-
   const leafCategories = useMemo(
     () =>
       state.categories
@@ -218,10 +255,10 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
-  const login: ForumContextValue['login'] = async (usernameOrEmail, password, stayLoggedIn = true) => {
+  const login: ForumContextValue['login'] = async (usernameOrEmail, password, stayLoggedIn = true, turnstileToken) => {
     const res = await api('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ usernameOrEmail, password, stayLoggedIn }),
+      body: JSON.stringify({ usernameOrEmail, password, stayLoggedIn, turnstileToken }),
     })
     if (!res.ok) return { ok: false, error: res.error }
     await refresh()
@@ -243,28 +280,25 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     if (!input.title.trim()) return { error: 'Title is required.' }
     if (isBodyEmpty(input.body)) return { error: 'Write something or insert an image.' }
     const body = await persistBodyImages(`thread_${Date.now()}`, input.body)
-    const res = await api<{ thread?: Thread; state?: ForumState }>('/api/threads', {
+    const res = await api<{ thread?: Thread }>('/api/threads', {
       method: 'POST',
-      body: JSON.stringify({ forumId: input.forumId, title: input.title.trim(), body }),
+      body: JSON.stringify({ forumId: input.forumId, title: input.title.trim(), body, tags: input.tags || [] }),
     })
     if (!res.ok) return { error: res.error }
-    if (res.state) setState(res.state)
-    else await refresh()
+    if (res.thread) cacheThreads([res.thread])
     return res.thread ?? { error: 'Thread created.' }
   }
 
   const updateThread: ForumContextValue['updateThread'] = (id, patch) => {
     const next = { ...patch }
-    if (patch.body) {
-      next.content = textFromBody(patch.body)
-      next.mediaUrl = firstImageUrl(patch.body)
-      next.mediaType = next.mediaUrl ? 'image' : null
-    }
+    if (patch.body) next.content = textFromBody(patch.body)
     void api(`/api/threads/${id}`, { method: 'PATCH', body: JSON.stringify(next) }).then(() => refresh())
   }
 
   const deleteThread: ForumContextValue['deleteThread'] = (id) => {
-    void api(`/api/threads/${id}`, { method: 'DELETE' }).then(() => refresh())
+    void api(`/api/threads/${id}`, { method: 'DELETE' }).then(() =>
+      setState((s) => ({ ...s, threads: s.threads.filter((t) => t.id !== id) })),
+    )
   }
 
   const togglePin = (id: string) => {
@@ -273,10 +307,6 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   }
 
   const bumpViews = (id: string) => {
-    setState((s) => ({
-      ...s,
-      threads: s.threads.map((t) => (t.id === id ? { ...t, views: t.views + 1 } : t)),
-    }))
     void api(`/api/threads/${id}/view`, { method: 'POST' })
   }
 
@@ -284,89 +314,79 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return { error: 'Please log in to comment.' }
     if (isBodyEmpty(bodyInput)) return { error: 'Write something or insert an image.' }
     const body = await persistBodyImages(`comment_${Date.now()}`, bodyInput)
-    const res = await api<{ comment?: Comment; state?: ForumState }>('/api/comments', {
+    const res = await api<{ comment?: Comment }>('/api/comments', {
       method: 'POST',
       body: JSON.stringify({ threadId, parentId, body }),
     })
     if (!res.ok) return { error: res.error }
-    if (res.state) setState(res.state)
-    else await refresh()
     return res.comment ?? { error: 'Comment added.' }
   }
 
   const deleteComment: ForumContextValue['deleteComment'] = (id) => {
-    void api(`/api/comments/${id}`, { method: 'DELETE' }).then(() => refresh())
+    void api(`/api/comments/${id}`, { method: 'DELETE' })
   }
 
   const toggleLike: ForumContextValue['toggleLike'] = (targetType, targetId) => {
     if (!currentUser) return
-    void api('/api/likes', {
-      method: 'POST',
-      body: JSON.stringify({ targetType, targetId }),
-    }).then(() => refresh())
+    void api('/api/likes', { method: 'POST', body: JSON.stringify({ targetType, targetId }) })
   }
 
-  const isLiked = (targetType: 'thread' | 'comment', targetId: string) =>
-    !!currentUser &&
-    state.likes.some(
-      (l) => l.userId === currentUser.id && l.targetType === targetType && l.targetId === targetId,
-    )
+  const isLiked = (targetType: 'thread' | 'comment', targetId: string) => {
+    const thread = state.threads.find((t) => t.id === targetId)
+    if (targetType === 'thread' && thread?.liked) return true
+    return false
+  }
 
-  const likeCount = (targetType: 'thread' | 'comment', targetId: string) =>
-    state.likes.filter((l) => l.targetType === targetType && l.targetId === targetId).length
+  const likeCount = (targetType: 'thread' | 'comment', targetId: string) => {
+    if (targetType === 'thread') return state.threads.find((t) => t.id === targetId)?.likeCount || 0
+    return 0
+  }
 
   const toggleFollow: ForumContextValue['toggleFollow'] = (userId) => {
     if (!currentUser || currentUser.id === userId) return
-    void api('/api/follows', { method: 'POST', body: JSON.stringify({ userId }) }).then(() => refresh())
+    void api('/api/follows', { method: 'POST', body: JSON.stringify({ userId }) })
   }
 
-  const isFollowing = (userId: string) =>
-    !!currentUser &&
-    state.follows.some((f) => f.followerId === currentUser.id && f.followingId === userId)
+  const isFollowing = (_userId: string) => false
+  const followerCount = (_userId: string) => 0
+  const followingCount = (_userId: string) => 0
 
-  const followerCount = (userId: string) =>
-    state.follows.filter((f) => f.followingId === userId).length
-
-  const followingCount = (userId: string) =>
-    state.follows.filter((f) => f.followerId === userId).length
+  const toggleBookmark: ForumContextValue['toggleBookmark'] = async (threadId) => {
+    const res = await api<{ bookmarked?: boolean }>(`/api/threads/${threadId}/bookmark`, { method: 'POST' })
+    return res.ok ? !!res.bookmarked : false
+  }
 
   const report: ForumContextValue['report'] = (targetType, targetId, reason) => {
     if (!currentUser) return
-    void api('/api/reports', {
-      method: 'POST',
-      body: JSON.stringify({ targetType, targetId, reason }),
-    }).then(() => refresh())
+    void api('/api/reports', { method: 'POST', body: JSON.stringify({ targetType, targetId, reason }) })
   }
 
   const resolveReport: ForumContextValue['resolveReport'] = (id) => {
     if (!isMod) return
-    void api(`/api/mod/reports/${id}/resolve`, { method: 'POST' }).then(() => refresh())
+    void api(`/api/mod/reports/${id}/resolve`, { method: 'POST' })
   }
 
   const banUser: ForumContextValue['banUser'] = (userId, banned = true) => {
     if (!isMod) return
-    void api(`/api/mod/users/${userId}/ban`, {
-      method: 'POST',
-      body: JSON.stringify({ banned }),
-    }).then(() => refresh())
+    void api(`/api/mod/users/${userId}/ban`, { method: 'POST', body: JSON.stringify({ banned }) })
   }
 
   const setRole: ForumContextValue['setRole'] = (userId, role) => {
     if (!isAdmin) return
-    void api(`/api/admin/users/${userId}/role`, {
-      method: 'POST',
-      body: JSON.stringify({ role }),
-    }).then(() => refresh())
+    void api(`/api/admin/users/${userId}/role`, { method: 'POST', body: JSON.stringify({ role }) })
   }
 
   const markNotificationsRead = () => {
     if (!currentUser) return
-    void api('/api/notifications/read', { method: 'POST' }).then(() => refresh())
+    void api('/api/notifications/read', { method: 'POST' }).then(() => setUnreadCount(0))
   }
 
-  const resetDemoData = () => {
-    if (!isAdmin) return
-    void api('/api/admin/reset', { method: 'POST' }).then(() => refresh())
+  const resetDemoData: ForumContextValue['resetDemoData'] = async () => {
+    if (!isAdmin) return { ok: false, error: 'Admin access required.' }
+    const res = await api('/api/admin/reset', { method: 'POST' })
+    if (!res.ok) return { ok: false, error: res.error }
+    await refresh()
+    return { ok: true }
   }
 
   const saveCategory: ForumContextValue['saveCategory'] = async (input) => {
@@ -394,38 +414,27 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     if (!isAdmin) return
     void api('/api/admin/ads', { method: 'POST', body: JSON.stringify(ad) }).then(() => refresh())
   }
-
   const deleteAd = (id: string) => {
     if (!isAdmin) return
     void api(`/api/admin/ads/${id}`, { method: 'DELETE' }).then(() => refresh())
   }
-
-  const adsForSlot = (slot: AdSlot) =>
-    [...state.ads].filter((a) => a.slot === slot).sort((a, b) => a.order - b.order)
-
+  const adsForSlot = (slot: AdSlot) => [...state.ads].filter((a) => a.slot === slot).sort((a, b) => a.order - b.order)
   const setAdRotateSec = (sec: number) => {
     if (!isAdmin) return
-    void api('/api/admin/settings/ads-rotate', {
-      method: 'POST',
-      body: JSON.stringify({ sec }),
-    }).then(() => refresh())
+    void api('/api/admin/settings/ads-rotate', { method: 'POST', body: JSON.stringify({ sec }) }).then(() => refresh())
   }
-
   const saveTrendingGame: ForumContextValue['saveTrendingGame'] = (item) => {
     if (!isAdmin) return
     void api('/api/admin/games', { method: 'POST', body: JSON.stringify(item) }).then(() => refresh())
   }
-
   const deleteTrendingGame = (id: string) => {
     if (!isAdmin) return
     void api(`/api/admin/games/${id}`, { method: 'DELETE' }).then(() => refresh())
   }
-
   const saveProvider: ForumContextValue['saveProvider'] = (item) => {
     if (!isAdmin) return
     void api('/api/admin/providers', { method: 'POST', body: JSON.stringify(item) }).then(() => refresh())
   }
-
   const deleteProvider = (id: string) => {
     if (!isAdmin) return
     void api(`/api/admin/providers/${id}`, { method: 'DELETE' }).then(() => refresh())
@@ -439,6 +448,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     currentUser,
     isMod,
     isAdmin,
+    memberCount,
     register,
     login,
     logout,
@@ -460,6 +470,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     isFollowing,
     followerCount,
     followingCount,
+    toggleBookmark,
     report,
     resolveReport,
     banUser,
@@ -484,6 +495,8 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     saveProvider,
     deleteProvider,
     unreadCount,
+    cacheUsers,
+    cacheThreads,
   }
 
   if (!ready) {
@@ -501,7 +514,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
           <p className="font-semibold">Forum API is offline</p>
           <p className="text-sm prose-muted">{bootError}</p>
           <p className="text-xs prose-muted">
-            Start local MySQL, then <code>npm run db:migrate</code> and <code>npm run dev</code>
+            Start local MySQL, then <code>npm run db:push</code> and <code>npm run dev</code>
           </p>
           <button type="button" className="btn btn-primary" onClick={retry}>
             Retry

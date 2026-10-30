@@ -1,27 +1,38 @@
 import { ChevronDown, MessageCircle, Zap } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { useForum } from '../context/ForumContext'
+import { api } from '../lib/api'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
 
 export function Communities() {
-  const { topCategories, childCategories, state, getUser } = useForum()
+  const { topCategories, childCategories, cacheThreads } = useForum()
   const [params, setParams] = useSearchParams()
   const newOnly = params.get('new') === '1'
   const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({})
+  const [latestThreads, setLatestThreads] = useState<Thread[]>([])
+
+  useEffect(() => {
+    void api<{ threads: Thread[] }>('/api/threads?sort=latest&limit=40').then((res) => {
+      if (!res.ok) return
+      setLatestThreads(res.threads)
+      cacheThreads(res.threads)
+    })
+  }, [cacheThreads])
 
   const rows = useMemo(() => {
     return topCategories.map((category) => {
       const children = childCategories(category.id)
       const ids = [category.id, ...children.map((c) => c.id)]
-      const catThreads = state.threads.filter((t) => ids.includes(t.forumId))
-      const latest = [...catThreads].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] as Thread | undefined
-      const messages = catThreads.length + state.comments.filter((c) => catThreads.some((t) => t.id === c.threadId)).length
-      return { category, children, threads: catThreads.length, messages, latest }
+      const latest = latestThreads.find((t) => ids.includes(t.forumId))
+      const threads = category.threadCount + children.reduce((n, c) => n + c.threadCount, 0)
+      const messages = category.postCount + children.reduce((n, c) => n + c.postCount, 0)
+      return { category, children, threads, messages, latest }
     })
-  }, [topCategories, childCategories, state.threads, state.comments])
+  }, [topCategories, childCategories, latestThreads])
 
   const visible = newOnly
     ? rows.filter((r) => r.latest && Date.now() - +new Date(r.latest.createdAt) < 48 * 3600 * 1000)
@@ -29,6 +40,7 @@ export function Communities() {
 
   return (
     <div className="max-w-[1100px] mx-auto">
+      <DocumentTitle title="Forum list — MCW Forum" description="Browse MCW Casino Forum communities." />
       <div className="flex items-center justify-between mb-2">
         <h1 className="page-title gold-text">Forum list</h1>
         <button
@@ -47,7 +59,7 @@ export function Communities() {
         </div>
 
         {visible.map(({ category, children, threads, messages, latest }) => {
-          const author = latest ? getUser(latest.authorId) : null
+          const author = latest?.author
           const expanded = !!openSubs[category.id]
           return (
             <div key={category.id}>

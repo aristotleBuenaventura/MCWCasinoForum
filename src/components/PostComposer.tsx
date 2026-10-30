@@ -1,6 +1,7 @@
 import { ImagePlus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { compressImageFile, getMedia } from '../lib/media'
+import { getMedia } from '../lib/media'
+import { uploadImage } from '../lib/uploads'
 import { imageCount, MAX_POST_IMAGES, normalizeBody } from '../lib/postBody'
 import { uid } from '../lib/utils'
 import type { PostBody } from '../types'
@@ -172,7 +173,7 @@ export function PostComposer({ value, onChange, onBusyChange, placeholder = 'Wri
     }
     setBusyState(true)
     try {
-      const url = await compressImageFile(file)
+      const url = await uploadImage(file)
       const figure = makeFigure(uid('blk'), url, url)
       editor.focus()
       const range = caretIn(editor)

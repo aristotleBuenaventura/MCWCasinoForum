@@ -12,8 +12,10 @@ import { Members } from './pages/Members'
 import { Notifications } from './pages/Notifications'
 import { Profile } from './pages/Profile'
 import { Register } from './pages/Register'
+import { ResetPassword } from './pages/ResetPassword'
 import { Search } from './pages/Search'
 import { ThreadDetail } from './pages/ThreadDetail'
+import { VerifyEmail } from './pages/VerifyEmail'
 
 export default function App() {
   return (
@@ -32,6 +34,8 @@ export default function App() {
               <Route path="notifications" element={<Notifications />} />
               <Route path="login" element={<Login />} />
               <Route path="register" element={<Register />} />
+              <Route path="reset" element={<ResetPassword />} />
+              <Route path="verify-email" element={<VerifyEmail />} />
               <Route path="create" element={<CreateThread />} />
               <Route path="forums" element={<Navigate to="/communities" replace />} />
             </Route>

@@ -51,6 +51,12 @@ export interface Thread {
   createdAt: string
   updatedAt: string
   views: number
+  replyCount?: number
+  likeCount?: number
+  liked?: boolean
+  bookmarked?: boolean
+  unread?: boolean
+  author?: User | null
 }
 
 export interface Comment {

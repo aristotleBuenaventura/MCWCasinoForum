@@ -71,8 +71,8 @@ export function Register() {
       setError('Date of birth is required.')
       return
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
+      setError('Password must be at least 8 characters and include a letter and a number.')
       return
     }
     const res = await register({
@@ -168,7 +168,9 @@ export function Register() {
               </div>
               <div className="xf-pass-meter" />
               <p className="xf-reg-hint">
-                {password ? 'Choose a strong password of at least 8 characters.' : 'Entering a password is required.'}
+                {password
+                  ? 'At least 8 characters, including a letter and a number.'
+                  : 'Entering a password is required.'}
               </p>
             </div>
           </div>

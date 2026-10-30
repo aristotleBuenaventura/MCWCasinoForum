@@ -1,7 +1,6 @@
 import { ImagePlus, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { compressImageFile } from '../lib/media'
-import { fileToDataUrl } from '../lib/utils'
+import { uploadImage } from '../lib/uploads'
 import type { MediaType } from '../types'
 import { ForumMedia } from './ForumMedia'
 import { useToast } from './Toast'
@@ -27,15 +26,14 @@ export function MediaUpload({ mediaUrl, mediaType, onChange, onBusyChange, enabl
   const onFile = async (file: File | undefined) => {
     if (!file) return
     const isImage = file.type.startsWith('image/')
-    const isVideo = file.type.startsWith('video/')
-    if (!isImage && !isVideo) {
-      toast('Please choose an image or video file.')
+    if (!isImage) {
+      toast('Please choose a JPEG, PNG, GIF, or WebP image.')
       return
     }
     setBusyState(true)
     try {
-      const url = isImage ? await compressImageFile(file) : await fileToDataUrl(file, 6_000_000)
-      onChange(url, isImage ? 'image' : 'video')
+      const url = await uploadImage(file)
+      onChange(url, 'image')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Upload failed')
     } finally {

@@ -1,6 +1,8 @@
-import { Calendar, Flag, Heart, MessageSquare, Pin, Share2, ThumbsUp, Trash2 } from 'lucide-react'
+import { Bookmark, Calendar, Flag, Heart, MessageSquare, Pin, Share2, ThumbsUp, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { DocumentTitle } from '../components/DocumentTitle'
+import { api } from '../lib/api'
 import { Avatar } from '../components/Avatar'
 import { LoginLink } from '../components/LoginModal'
 import { PostBodyView } from '../components/PostBodyView'
@@ -10,7 +12,7 @@ import { useForum } from '../context/ForumContext'
 import { ART } from '../data/artwork'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
 import { compactNumber, forumTime } from '../lib/utils'
-import type { PostBody, User } from '../types'
+import type { Comment, PostBody, Thread, User } from '../types'
 
 const PER_PAGE = 10
 
@@ -68,19 +70,53 @@ export function ThreadDetail() {
     deleteThread,
     deleteComment,
     toggleLike,
-    isLiked,
-    likeCount,
     report,
     banUser,
     bumpViews,
     togglePin,
+    toggleBookmark,
+    cacheUsers,
+    cacheThreads,
   } = useForum()
 
-  const thread = state.threads.find((t) => t.id === id)
-  const author = thread ? getUser(thread.authorId) : undefined
+  const [thread, setThread] = useState<Thread | null>(state.threads.find((t) => t.id === id) || null)
+  const [loading, setLoading] = useState(!state.threads.find((t) => t.id === id))
+  const [comments, setComments] = useState<(Comment & { author?: User | null; likeCount?: number; liked?: boolean })[]>([])
+  const [commentTotal, setCommentTotal] = useState(0)
+  const author = thread?.author || (thread ? getUser(thread.authorId) : undefined)
   const forum = thread ? state.categories.find((c) => c.id === thread.forumId) : undefined
   const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
   const [uploading, setUploading] = useState(false)
+  const [saved, setSaved] = useState(!!thread?.bookmarked)
+  const [quoteParent, setQuoteParent] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    void api<{ thread: Thread }>(`/api/threads/${id}`).then((res) => {
+      if (!res.ok) {
+        setThread(null)
+        setLoading(false)
+        return
+      }
+      setThread(res.thread)
+      setSaved(!!res.thread.bookmarked)
+      cacheThreads([res.thread])
+      if (res.thread.author) cacheUsers([res.thread.author])
+      setLoading(false)
+    })
+  }, [id, cacheThreads, cacheUsers])
+
+  useEffect(() => {
+    if (!id) return
+    void api<{ comments: (Comment & { author?: User | null; likeCount?: number; liked?: boolean })[]; total: number }>(
+      `/api/threads/${id}/comments?page=${page}&limit=${PER_PAGE}`,
+    ).then((res) => {
+      if (!res.ok) return
+      setComments(res.comments)
+      setCommentTotal(res.total)
+      cacheUsers(res.comments.map((c) => c.author).filter((u): u is User => Boolean(u)))
+    })
+  }, [id, page, cacheUsers])
 
   useEffect(() => {
     if (!id) return
@@ -91,29 +127,38 @@ export function ThreadDetail() {
   }, [id, bumpViews])
 
   const posts = useMemo(() => {
-    const comments = state.comments
-      .filter((c) => c.threadId === id)
-      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt))
+    const mapped = comments.map((c) => ({
+      kind: 'reply' as const,
+      createdAt: c.createdAt,
+      authorId: c.authorId,
+      body: ensureCommentBody(c).body,
+      id: c.id,
+      likeCount: c.likeCount || 0,
+      liked: !!c.liked,
+      author: c.author,
+    }))
+    if (page > 1 || !thread) return mapped
     return [
       {
         kind: 'op' as const,
-        createdAt: thread?.createdAt || '',
-        authorId: thread?.authorId || '',
-        body: thread ? ensureThreadBody(thread).body : emptyBody(),
-        id: thread?.id || '',
+        createdAt: thread.createdAt,
+        authorId: thread.authorId,
+        body: ensureThreadBody(thread).body,
+        id: thread.id,
+        likeCount: thread.likeCount || 0,
+        liked: !!thread.liked,
+        author: thread.author,
       },
-      ...comments.map((c) => ({
-        kind: 'reply' as const,
-        createdAt: c.createdAt,
-        authorId: c.authorId,
-        body: ensureCommentBody(c).body,
-        id: c.id,
-      })),
+      ...mapped,
     ]
-  }, [state.comments, id, thread])
+  }, [comments, thread, page])
 
-  const pageCount = Math.max(1, Math.ceil(posts.length / PER_PAGE))
-  const pageItems = posts.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const pageCount = Math.max(1, Math.ceil((commentTotal + 1) / PER_PAGE))
+  const pageItems = posts
+
+  if (loading) {
+    return <div className="forum-card p-6 text-center max-w-[1100px] mx-auto prose-muted">Loading discussion…</div>
+  }
 
   if (!thread) {
     return (
@@ -124,19 +169,18 @@ export function ThreadDetail() {
     )
   }
 
-  const liked = isLiked('thread', thread.id)
-  const likes = likeCount('thread', thread.id)
   const canDelete = currentUser && (currentUser.id === thread.authorId || isMod)
 
   const onComment = async (e: FormEvent) => {
     e.preventDefault()
     if (uploading) return
-    const res = await addComment(thread.id, replyBody)
+    const res = await addComment(thread.id, replyBody, quoteParent)
     if ('error' in res) {
       toast(res.error)
       return
     }
     setReplyBody(emptyBody())
+    setQuoteParent(null)
     toast('Reply posted')
   }
 
@@ -153,6 +197,18 @@ export function ThreadDetail() {
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-3">
+      <DocumentTitle title={`${thread.title} — MCW Forum`} description={thread.content.slice(0, 160)} />
+      <script type="application/ld+json">
+        {JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'DiscussionForumPosting',
+          headline: thread.title,
+          datePublished: thread.createdAt,
+          dateModified: thread.updatedAt,
+          author: author ? { '@type': 'Person', name: author.displayName } : undefined,
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
+        })}
+      </script>
       <div className="text-[12px] prose-muted">
         <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
         {forum && (
@@ -181,6 +237,15 @@ export function ThreadDetail() {
         </Link>
         <span>{forumTime(thread.createdAt)}</span>
         {thread.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+        {currentUser && (
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 ${saved ? 'text-[var(--color-gold)]' : ''}`}
+            onClick={() => void toggleBookmark(thread.id).then(setSaved)}
+          >
+            <Bookmark size={12} /> {saved ? 'Saved' : 'Save'}
+          </button>
+        )}
       </div>
 
       {pageCount > 1 && (
@@ -196,10 +261,10 @@ export function ThreadDetail() {
 
       {pageItems.map((post, index) => {
         const number = (page - 1) * PER_PAGE + index + 1
-        const user = getUser(post.authorId)
+        const user = post.author || getUser(post.authorId)
         const isOp = post.kind === 'op'
-        const likedPost = isOp ? liked : isLiked('comment', post.id)
-        const likeN = isOp ? likes : likeCount('comment', post.id)
+        const likedPost = post.liked
+        const likeN = post.likeCount
         return (
           <article key={post.id} className="xf-post">
             <MemberCard user={user} />
@@ -230,6 +295,17 @@ export function ThreadDetail() {
                 >
                   <ThumbsUp size={13} /> {likeN}
                 </button>
+                {currentUser && !isOp && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuoteParent(post.id)
+                      toast('Replying to this comment')
+                    }}
+                  >
+                    Quote
+                  </button>
+                )}
                 {currentUser && (
                   <button
                     type="button"
@@ -298,11 +374,19 @@ export function ThreadDetail() {
         <div className="xf-form-head">Reply to thread</div>
         {currentUser ? (
           <form onSubmit={onComment}>
+            {quoteParent && (
+              <p className="text-[12px] px-3 pt-2 prose-muted">
+                Replying to a comment.{' '}
+                <button type="button" className="gold-text" onClick={() => setQuoteParent(null)}>
+                  Cancel
+                </button>
+              </p>
+            )}
             <PostComposer
               value={replyBody}
               onChange={setReplyBody}
               onBusyChange={setUploading}
-              placeholder="Write your reply..."
+              placeholder={quoteParent ? 'Write your quoted reply...' : 'Write your reply. Use @username to mention someone.'}
             />
             <div className="xf-form-actions">
               <button type="submit" className="btn-post" disabled={uploading}>

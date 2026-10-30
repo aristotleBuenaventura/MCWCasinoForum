@@ -19,6 +19,7 @@ model User {
   banned              Boolean   @default(false)
   failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime? @map("locked_until")
+  emailVerifiedAt     DateTime? @map("email_verified_at")
   createdAt           DateTime  @default(now()) @map("created_at")
   dateOfBirth         DateTime? @map("date_of_birth") @db.Date
 
@@ -30,6 +31,11 @@ model User {
   followers     Follow[]         @relation("Following")
   notifications Notification[]
   reports       Report[]
+  bookmarks     Bookmark[]
+  threadReads   ThreadRead[]
+  revisions     ThreadRevision[] @relation("RevisionEditor")
+  tokens        AuthToken[]
+  auditLogs     AuditLog[]
 
   @@map("users")
 }
@@ -81,12 +87,17 @@ model Thread {
   updatedAt DateTime @updatedAt @map("updated_at")
   views     Int      @default(0)
 
-  forum    Category  @relation(fields: [forumId], references: [id], onDelete: Restrict)
-  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments Comment[]
+  forum     Category         @relation(fields: [forumId], references: [id], onDelete: Restrict)
+  author    User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  bookmarks Bookmark[]
+  reads     ThreadRead[]
+  revisions ThreadRevision[]
 
   @@index([forumId], map: "idx_threads_forum")
   @@index([createdAt], map: "idx_threads_created")
+  @@index([authorId], map: "idx_threads_author")
+  @@index([forumId, createdAt], map: "idx_threads_forum_created")
   @@map("threads")
 }
 
@@ -105,6 +116,7 @@ model Comment {
   replies Comment[] @relation("CommentTree")
 
   @@index([threadId], map: "idx_comments_thread")
+  @@index([authorId], map: "idx_comments_author")
   @@map("comments")
 }
 
@@ -117,6 +129,7 @@ model Like {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetType, targetId], map: "uniq_like")
+  @@index([targetType, targetId], map: "idx_likes_target")
   @@map("likes")
 }
 
@@ -144,6 +157,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read], map: "idx_notifications_user")
+  @@index([userId, createdAt], map: "idx_notifications_user_created")
   @@map("notifications")
 }
 
@@ -158,7 +172,89 @@ model Report {
 
   reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
 
+  @@index([status, createdAt], map: "idx_reports_status")
   @@map("reports")
+}
+
+model Bookmark {
+  id        String   @id @db.VarChar(64)
+  userId    String   @map("user_id") @db.VarChar(64)
+  threadId  String   @map("thread_id") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId], map: "uniq_bookmark")
+  @@index([userId, createdAt], map: "idx_bookmarks_user")
+  @@map("bookmarks")
+}
+
+model ThreadRead {
+  userId     String   @map("user_id") @db.VarChar(64)
+  threadId   String   @map("thread_id") @db.VarChar(64)
+  lastReadAt DateTime @default(now()) @map("last_read_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([userId, threadId])
+  @@map("thread_reads")
+}
+
+model ThreadRevision {
+  id        String   @id @db.VarChar(64)
+  threadId  String   @map("thread_id") @db.VarChar(64)
+  editorId  String   @map("editor_id") @db.VarChar(64)
+  title     String   @db.VarChar(255)
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  editor User   @relation("RevisionEditor", fields: [editorId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt], map: "idx_revisions_thread")
+  @@map("thread_revisions")
+}
+
+model AuthToken {
+  id        String    @id @db.VarChar(64)
+  userId    String    @map("user_id") @db.VarChar(64)
+  type      String    @db.VarChar(16)
+  tokenHash String    @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash, type], map: "idx_auth_tokens_hash")
+  @@map("auth_tokens")
+}
+
+model AuditLog {
+  id         String   @id @db.VarChar(64)
+  actorId    String?  @map("actor_id") @db.VarChar(64)
+  action     String   @db.VarChar(64)
+  targetType String   @map("target_type") @db.VarChar(32)
+  targetId   String   @map("target_id") @db.VarChar(64)
+  meta       String   @db.Text
+  ip         String?  @db.VarChar(64)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt], map: "idx_audit_created")
+  @@index([actorId], map: "idx_audit_actor")
+  @@map("audit_logs")
+}
+
+model RateBucket {
+  key         String   @id @db.VarChar(191)
+  count       Int      @default(0)
+  windowStart DateTime @map("window_start")
+
+  @@map("rate_buckets")
 }
 
 model Ad {

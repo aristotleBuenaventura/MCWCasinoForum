@@ -67,8 +67,34 @@ export function assertCanPost(
   return null;
 }
 
+const TEST_TURNSTILE_SECRET = "1x0000000000000000000000000000000AA";
+
+export function turnstileSecret() {
+  return process.env.TURNSTILE_SECRET || TEST_TURNSTILE_SECRET;
+}
+
+export function isTestTurnstile() {
+  const secret = turnstileSecret();
+  return secret === TEST_TURNSTILE_SECRET || secret.startsWith("1x000000000000000000000");
+}
+
+export function assertTurnstileConfigured() {
+  if (process.env.NODE_ENV === "production" && isTestTurnstile()) {
+    throw new Error("TURNSTILE_SECRET must be a real Cloudflare secret in production.");
+  }
+}
+
+export function passwordPolicyError(password: string) {
+  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (password.length > 128) return "Password is too long.";
+  if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
+    return "Password must include a letter and a number.";
+  }
+  return null;
+}
+
 export async function verifyTurnstile(token: string, ip: string) {
-  const secret = process.env.TURNSTILE_SECRET || "1x0000000000000000000000000000000AA";
+  const secret = turnstileSecret();
   if (!token) return false;
   try {
     const body = new URLSearchParams({ secret, response: token, remoteip: ip });

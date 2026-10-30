@@ -1,202 +1,11 @@
-import type {
-  Ad,
-  CmsItem,
-  Comment,
-  ForumCategory,
-  ForumState,
-  GameProvider,
-  Like,
-  Notification,
-  Report,
-  Role,
-  Thread,
-  User,
-} from "../../../src/types.ts";
+import type { ForumCategory, PostBody } from "../../../src/types.ts";
 import { prisma } from "./prisma.js";
 import { uid } from "./ids.js";
+import { mapAd, mapCategory, mapGame, mapProvider, mapThread, publicUser, type UserRow } from "./serialize.js";
 
-export type DbUser = {
-  id: string;
-  username: string;
-  email: string;
-  displayName: string;
-  bio: string;
-  avatar: string;
-  role: string;
-  banned: boolean;
-  createdAt: Date;
-  dateOfBirth: Date | null;
-};
+export type DbUser = UserRow;
 
-function iso(value: Date | string) {
-  return value instanceof Date ? value.toISOString() : String(value);
-}
-
-function dateOnly(value: Date | string | null | undefined) {
-  if (!value) return undefined;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return String(value).slice(0, 10);
-}
-
-export function publicUser(row: DbUser, includeEmail: boolean): User {
-  return {
-    id: row.id,
-    username: row.username,
-    email: includeEmail ? row.email : "",
-    password: "",
-    displayName: row.displayName,
-    bio: row.bio || "",
-    avatar: row.avatar || "",
-    role: row.role as Role,
-    banned: Boolean(row.banned),
-    createdAt: iso(row.createdAt),
-    dateOfBirth: dateOnly(row.dateOfBirth),
-  };
-}
-
-export async function loadState(viewer: DbUser | null): Promise<ForumState> {
-  const [users, categories, threads, comments, likes, follows, notifications, reports, ads, games, providers, settings] =
-    await Promise.all([
-      prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-      prisma.thread.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.comment.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.like.findMany(),
-      prisma.follow.findMany(),
-      prisma.notification.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.report.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.ad.findMany({ orderBy: { sortOrder: "asc" } }),
-      prisma.trendingGame.findMany({ orderBy: { sortOrder: "asc" } }),
-      prisma.provider.findMany({ orderBy: { sortOrder: "asc" } }),
-      prisma.setting.findMany(),
-    ]);
-
-  const staff = viewer?.role === "admin" || viewer?.role === "moderator";
-  const mappedUsers: User[] = users.map((u) => publicUser(u, staff || viewer?.id === u.id));
-
-  const mappedThreads: Thread[] = threads.map((t) => ({
-    id: t.id,
-    forumId: t.forumId,
-    authorId: t.authorId,
-    title: t.title,
-    content: t.content || "",
-    body: (t.body as Thread["body"]) || [],
-    mediaUrl: t.mediaUrl,
-    mediaType: (t.mediaType as Thread["mediaType"]) ?? null,
-    pinned: t.pinned,
-    solved: t.solved,
-    tags: Array.isArray(t.tags) ? (t.tags as string[]) : [],
-    createdAt: iso(t.createdAt),
-    updatedAt: iso(t.updatedAt),
-    views: t.views,
-  }));
-
-  const mappedComments: Comment[] = comments.map((c) => ({
-    id: c.id,
-    threadId: c.threadId,
-    authorId: c.authorId,
-    parentId: c.parentId,
-    content: c.content || "",
-    body: (c.body as Comment["body"]) || [],
-    createdAt: iso(c.createdAt),
-  }));
-
-  const mappedCategories: ForumCategory[] = categories.map((c) => {
-    const catThreads = mappedThreads.filter((t) => t.forumId === c.id);
-    const postCount =
-      catThreads.length +
-      mappedComments.filter((cm) => catThreads.some((t) => t.id === cm.threadId)).length;
-    return {
-      id: c.id,
-      slug: c.slug,
-      name: c.name,
-      description: c.description || "",
-      parentId: c.parentId,
-      featured: c.featured,
-      order: c.sortOrder,
-      threadCount: catThreads.length,
-      postCount,
-    };
-  });
-
-  const mappedLikes: Like[] = likes.map((l) => ({
-    id: l.id,
-    userId: l.userId,
-    targetType: l.targetType as Like["targetType"],
-    targetId: l.targetId,
-  }));
-
-  const mappedFollows = follows.map((f) => ({
-    id: f.id,
-    followerId: f.followerId,
-    followingId: f.followingId,
-  }));
-
-  const mappedNotifs: Notification[] = notifications.map((n) => ({
-    id: n.id,
-    userId: n.userId,
-    type: n.type as Notification["type"],
-    message: n.message,
-    link: n.link || "/",
-    read: n.read,
-    createdAt: iso(n.createdAt),
-  }));
-
-  const mappedReports: Report[] = reports.map((r) => ({
-    id: r.id,
-    reporterId: r.reporterId,
-    targetType: r.targetType as Report["targetType"],
-    targetId: r.targetId,
-    reason: r.reason,
-    status: r.status as Report["status"],
-    createdAt: iso(r.createdAt),
-  }));
-
-  const mappedAds: Ad[] = ads.map((a) => ({
-    id: a.id,
-    slot: a.slot as Ad["slot"],
-    imageUrl: a.imageUrl || "",
-    url: a.url || "",
-    title: a.title || "",
-    order: a.sortOrder,
-  }));
-
-  const mappedGames: CmsItem[] = games.map((g) => ({
-    id: g.id,
-    title: g.title,
-    subtitle: g.subtitle || "",
-    imageUrl: g.imageUrl || "",
-    url: g.url || "",
-    order: g.sortOrder,
-  }));
-
-  const mappedProviders: GameProvider[] = providers.map((p) => ({
-    id: p.id,
-    name: p.name,
-    imageUrl: p.imageUrl || "",
-    url: p.url || "",
-    rating: p.rating,
-    order: p.sortOrder,
-  }));
-
-  const rotate = settings.find((s) => s.key === "ad_rotate_sec")?.value;
-
-  return {
-    users: mappedUsers,
-    categories: mappedCategories,
-    threads: mappedThreads,
-    comments: mappedComments,
-    likes: mappedLikes,
-    follows: mappedFollows,
-    notifications: mappedNotifs,
-    reports: mappedReports,
-    ads: mappedAds,
-    adRotateSec: Math.max(2, Math.min(60, Number(rotate || 5))),
-    trendingGames: mappedGames,
-    providers: mappedProviders,
-    currentUserId: viewer && !viewer.banned ? viewer.id : null,
-  };
-}
+export { publicUser };
 
 export async function notify(input: {
   userId: string;
@@ -215,4 +24,175 @@ export async function notify(input: {
       link: input.link,
     },
   });
+}
+
+export async function mentionUsers(text: string, actorId: string, actorName: string, link: string) {
+  const names = [...new Set([...text.matchAll(/@([a-z0-9_]{3,20})/gi)].map((m) => m[1]!.toLowerCase()))];
+  if (!names.length) return;
+  const users = await prisma.user.findMany({
+    where: { username: { in: names } },
+    select: { id: true, username: true },
+  });
+  for (const user of users) {
+    await notify({
+      userId: user.id,
+      actorId,
+      type: "mention",
+      message: `${actorName} mentioned you`,
+      link,
+    });
+  }
+}
+
+export function textFromBody(body: PostBody) {
+  return body
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n\n")
+    .trim();
+}
+
+export function firstImage(body: PostBody) {
+  return body.find((b) => b.type === "image")?.url ?? null;
+}
+
+export function isTextEmpty(body: PostBody | undefined) {
+  if (!Array.isArray(body) || body.length === 0) return true;
+  const text = textFromBody(body);
+  const images = body.filter((b) => b.type === "image" && b.url).length;
+  return !text && images === 0;
+}
+
+export async function categoryCounts(): Promise<Map<string, { threadCount: number; postCount: number }>> {
+  const [threadGroups, commentGroups] = await Promise.all([
+    prisma.thread.groupBy({ by: ["forumId"], _count: { _all: true } }),
+    prisma.comment.groupBy({
+      by: ["threadId"],
+      _count: { _all: true },
+    }),
+  ]);
+  const threadIds = commentGroups.map((g) => g.threadId);
+  const threads = threadIds.length
+    ? await prisma.thread.findMany({ where: { id: { in: threadIds } }, select: { id: true, forumId: true } })
+    : [];
+  const threadForum = new Map(threads.map((t) => [t.id, t.forumId]));
+  const map = new Map<string, { threadCount: number; postCount: number }>();
+  for (const g of threadGroups) {
+    map.set(g.forumId, { threadCount: g._count._all, postCount: g._count._all });
+  }
+  for (const g of commentGroups) {
+    const forumId = threadForum.get(g.threadId);
+    if (!forumId) continue;
+    const cur = map.get(forumId) || { threadCount: 0, postCount: 0 };
+    cur.postCount += g._count._all;
+    map.set(forumId, cur);
+  }
+  return map;
+}
+
+export async function loadCategories(): Promise<ForumCategory[]> {
+  const [rows, counts] = await Promise.all([
+    prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    categoryCounts(),
+  ]);
+  return rows.map((c) => mapCategory(c, counts.get(c.id) || { threadCount: 0, postCount: 0 }));
+}
+
+export async function loadBootstrap(viewer: UserRow | null) {
+  const [categories, ads, games, providers, settings, unreadCount, memberCount] = await Promise.all([
+    loadCategories(),
+    prisma.ad.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.trendingGame.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.provider.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.setting.findMany(),
+    viewer
+      ? prisma.notification.count({ where: { userId: viewer.id, read: false } })
+      : Promise.resolve(0),
+    prisma.user.count({ where: { banned: false } }),
+  ]);
+  const rotate = settings.find((s) => s.key === "ad_rotate_sec")?.value;
+  return {
+    me: viewer && !viewer.banned ? publicUser(viewer, { self: true }) : null,
+    unreadCount,
+    memberCount,
+    categories,
+    ads: ads.map(mapAd),
+    trendingGames: games.map(mapGame),
+    providers: providers.map(mapProvider),
+    adRotateSec: Math.max(2, Math.min(60, Number(rotate || 5))),
+  };
+}
+
+export async function threadStats(ids: string[], userId?: string) {
+  if (!ids.length) {
+    return {
+      comments: new Map<string, number>(),
+      likes: new Map<string, number>(),
+      liked: new Set<string>(),
+      bookmarked: new Set<string>(),
+      unread: new Set<string>(),
+    };
+  }
+  const [commentGroups, likeGroups, likedRows, bookmarkRows, readRows, threads] = await Promise.all([
+    prisma.comment.groupBy({ by: ["threadId"], where: { threadId: { in: ids } }, _count: { _all: true } }),
+    prisma.like.groupBy({
+      by: ["targetId"],
+      where: { targetType: "thread", targetId: { in: ids } },
+      _count: { _all: true },
+    }),
+    userId
+      ? prisma.like.findMany({
+          where: { userId, targetType: "thread", targetId: { in: ids } },
+          select: { targetId: true },
+        })
+      : Promise.resolve([]),
+    userId
+      ? prisma.bookmark.findMany({ where: { userId, threadId: { in: ids } }, select: { threadId: true } })
+      : Promise.resolve([]),
+    userId
+      ? prisma.threadRead.findMany({ where: { userId, threadId: { in: ids } } })
+      : Promise.resolve([]),
+    userId
+      ? prisma.thread.findMany({ where: { id: { in: ids } }, select: { id: true, updatedAt: true } })
+      : Promise.resolve([]),
+  ]);
+  const comments = new Map(commentGroups.map((g) => [g.threadId, g._count._all]));
+  const likes = new Map(likeGroups.map((g) => [g.targetId, g._count._all]));
+  const liked = new Set(likedRows.map((r) => r.targetId));
+  const bookmarked = new Set(bookmarkRows.map((r) => r.threadId));
+  const lastRead = new Map(readRows.map((r) => [r.threadId, r.lastReadAt.getTime()]));
+  const unread = new Set<string>();
+  if (userId) {
+    for (const t of threads) {
+      const seen = lastRead.get(t.id) || 0;
+      if (t.updatedAt.getTime() > seen) unread.add(t.id);
+    }
+  }
+  return { comments, likes, liked, bookmarked, unread };
+}
+
+export function decorateThreads(
+  rows: Parameters<typeof mapThread>[0][],
+  stats: Awaited<ReturnType<typeof threadStats>>,
+  authors: Map<string, ReturnType<typeof publicUser>>,
+) {
+  return rows.map((row) => {
+    const thread = mapThread(row);
+    return {
+      ...thread,
+      replyCount: stats.comments.get(row.id) || 0,
+      likeCount: stats.likes.get(row.id) || 0,
+      liked: stats.liked.has(row.id),
+      bookmarked: stats.bookmarked.has(row.id),
+      unread: stats.unread.has(row.id),
+      author: authors.get(row.authorId) || null,
+    };
+  });
+}
+
+export async function authorsByIds(ids: string[]) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return new Map<string, ReturnType<typeof publicUser>>();
+  const users = await prisma.user.findMany({ where: { id: { in: unique } } });
+  return new Map(users.map((u) => [u.id, publicUser(u)]));
 }

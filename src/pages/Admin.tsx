@@ -1,11 +1,14 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useToast } from '../components/Toast'
 import { MediaOrPlaceholder } from '../components/Placeholder'
 import { useForum } from '../context/ForumContext'
-import { fileToDataUrl, timeAgo } from '../lib/utils'
-import type { Ad, AdSlot, CmsItem, GameProvider } from '../types'
+import { timeAgo } from '../lib/utils'
+import { api } from '../lib/api'
+import { uploadImage } from '../lib/uploads'
+import type { Ad, AdSlot, CmsItem, GameProvider, Report, User } from '../types'
 
 type Tab = 'ads' | 'games' | 'featured' | 'providers' | 'communities' | 'pins' | 'moderation'
 
@@ -18,7 +21,7 @@ const SLOTS: { id: AdSlot; label: string }[] = [
 
 async function pickImage(file?: File) {
   if (!file) return ''
-  return fileToDataUrl(file, 3_500_000)
+  return uploadImage(file)
 }
 
 function ImageField({
@@ -76,6 +79,7 @@ export function Admin() {
     deleteThread,
     deleteComment,
     banUser,
+    setRole,
     resetDemoData,
     topCategories,
   } = useForum()
@@ -95,6 +99,22 @@ export function Admin() {
     featured: false,
     order: 1,
   })
+  const [stats, setStats] = useState({ users: 0, threads: 0, comments: 0, reports: 0, openReports: 0 })
+  const [reports, setReports] = useState<Report[]>([])
+  const [adminUsers, setAdminUsers] = useState<User[]>([])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    void api<{ stats: typeof stats }>('/api/admin/stats').then((res) => {
+      if (res.ok) setStats(res.stats)
+    })
+    void api<{ reports: Report[] }>('/api/admin/reports').then((res) => {
+      if (res.ok) setReports(res.reports)
+    })
+    void api<{ users: User[] }>('/api/admin/users').then((res) => {
+      if (res.ok) setAdminUsers(res.users)
+    })
+  }, [isAdmin, tab])
 
   if (!currentUser || !isAdmin) {
     return (
@@ -176,22 +196,24 @@ export function Admin() {
     toast('Community saved')
   }
 
-  const openReports = state.reports.filter((r) => r.status === 'open')
+  const openReports = reports.filter((r) => r.status === 'open')
 
   return (
     <div className="space-y-4">
+      <DocumentTitle title="Admin — MCW Forum" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title gold-text">Admin dashboard</h1>
-          <p className="text-[12px] prose-muted">Set ads, trending games, featured communities, and providers. Admin only.</p>
+          <p className="text-[12px] prose-muted">
+            {stats.users} members · {stats.threads} threads · {stats.comments} replies · {stats.openReports} open reports
+          </p>
         </div>
         <button
           type="button"
           className="btn btn-secondary"
           onClick={() => {
             if (!window.confirm('Reset all demo data? You will be logged out.')) return
-            resetDemoData()
-            toast('Demo data reset')
+            void resetDemoData().then((res) => toast(res.ok ? 'Demo data reset' : res.error))
           }}
         >
           Reset demo data
@@ -443,24 +465,40 @@ export function Admin() {
           </section>
           <section className="forum-card overflow-hidden">
             <div className="px-4 py-3 font-semibold border-b border-[var(--color-border)]">Users</div>
-            {state.users.filter((u) => u.id !== currentUser.id).map((u) => (
+            {adminUsers.filter((u) => u.id !== currentUser.id).map((u) => (
               <div key={u.id} className="p-3 flex items-center justify-between gap-2 border-b border-[var(--color-border)]">
                 <div>
                   <Link to={`/profile/${u.username}`} className="font-medium gold-text hover:underline">@{u.username}</Link>
                   <div className="text-xs prose-muted">{u.banned ? 'Removed' : u.role}</div>
                 </div>
-                {u.role === 'user' && (
-                  <button
-                    type="button"
-                    className={`btn text-sm ${u.banned ? 'btn-secondary' : 'btn-danger'}`}
-                    onClick={() => {
-                      banUser(u.id, !u.banned)
-                      toast(u.banned ? 'User restored' : 'User removed')
+                <div className="flex items-center gap-2">
+                  <select
+                    className="input h-7 text-[12px] w-28"
+                    value={u.role}
+                    onChange={(e) => {
+                      const role = e.target.value as User['role']
+                      setRole(u.id, role)
+                      setAdminUsers((list) => list.map((row) => (row.id === u.id ? { ...row, role } : row)))
+                      toast(`Role set to ${role}`)
                     }}
                   >
-                    {u.banned ? 'Restore' : 'Remove'}
-                  </button>
-                )}
+                    <option value="user">user</option>
+                    <option value="moderator">moderator</option>
+                    <option value="admin">admin</option>
+                  </select>
+                  {u.role === 'user' && (
+                    <button
+                      type="button"
+                      className={`btn text-sm ${u.banned ? 'btn-secondary' : 'btn-danger'}`}
+                      onClick={() => {
+                        banUser(u.id, !u.banned)
+                        toast(u.banned ? 'User restored' : 'User removed')
+                      }}
+                    >
+                      {u.banned ? 'Restore' : 'Remove'}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </section>

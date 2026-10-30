@@ -7,13 +7,16 @@ export async function api<T = Record<string, unknown>>(
   init?: RequestInit,
 ): Promise<ApiResult<T>> {
   try {
+    const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData
     const res = await fetch(path, {
       credentials: 'include',
       ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers || {}),
-      },
+      headers: isForm
+        ? { ...(init?.headers || {}) }
+        : {
+            'Content-Type': 'application/json',
+            ...(init?.headers || {}),
+          },
     })
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string } & T
     if (!res.ok || data.ok === false) {

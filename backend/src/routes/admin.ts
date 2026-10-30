@@ -5,22 +5,72 @@ import { slugify } from "../lib/security.js";
 import { seedForum } from "../../prisma/seed.js";
 import { clearAuthCookie } from "../lib/cookies.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
+import { audit } from "../lib/audit.js";
+import { mapReport, publicUser } from "../lib/serialize.js";
 import type { Role } from "../../../src/types.ts";
 
 export const adminRouter = Router();
 
+function routeId(req: { params: { id?: string | string[] } }) {
+  const value = req.params.id;
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
 adminRouter.use(requireAuth, requireAdmin);
+
+adminRouter.get("/stats", async (_req, res) => {
+  const [users, threads, comments, reports, openReports] = await Promise.all([
+    prisma.user.count(),
+    prisma.thread.count(),
+    prisma.comment.count(),
+    prisma.report.count(),
+    prisma.report.count({ where: { status: "open" } }),
+  ]);
+  res.json({ ok: true, stats: { users, threads, comments, reports, openReports } });
+});
+
+adminRouter.get("/users", async (_req, res) => {
+  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" }, take: 200 });
+  res.json({
+    ok: true,
+    users: users.map((u) => ({ ...publicUser(u, { self: true }), banned: u.banned, role: u.role })),
+  });
+});
+
+adminRouter.get("/reports", async (_req, res) => {
+  const reports = await prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+  res.json({ ok: true, reports: reports.map(mapReport) });
+});
+
+adminRouter.get("/threads", async (req, res) => {
+  const threads = await prisma.thread.findMany({
+    orderBy: { createdAt: "desc" },
+    take: Number(req.query.limit) > 0 ? Math.min(100, Number(req.query.limit)) : 50,
+    select: { id: true, title: true, pinned: true, createdAt: true, authorId: true, forumId: true },
+  });
+  res.json({ ok: true, threads });
+});
+
+adminRouter.get("/audit", async (_req, res) => {
+  const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+  res.json({ ok: true, logs });
+});
 
 adminRouter.post("/users/:id/role", async (req, res) => {
   const role = (req.body as { role?: Role }).role;
   if (!role || !["user", "moderator", "admin"].includes(role)) {
     return res.status(400).json({ ok: false, error: "Invalid role." });
   }
-  await prisma.user.update({ where: { id: req.params.id }, data: { role } });
+  await prisma.user.update({ where: { id: routeId(req) }, data: { role } });
+  await audit(req, "user.role", "user", routeId(req), { role });
   res.json({ ok: true });
 });
 
-adminRouter.post("/reset", async (_req, res) => {
+adminRouter.post("/reset", async (req, res) => {
+  if (process.env.ALLOW_DEMO_RESET !== "true") {
+    return res.status(403).json({ ok: false, error: "Demo reset is disabled." });
+  }
+  await audit(req, "forum.reset", "forum", "all");
   await seedForum();
   clearAuthCookie(res);
   res.json({ ok: true });
@@ -71,16 +121,16 @@ adminRouter.post("/categories", async (req, res) => {
 });
 
 adminRouter.delete("/categories/:id", async (req, res) => {
-  const kids = await prisma.category.count({ where: { parentId: req.params.id } });
+  const kids = await prisma.category.count({ where: { parentId: routeId(req) } });
   if (kids) return res.status(400).json({ ok: false, error: "Remove nested communities first." });
-  const threads = await prisma.thread.count({ where: { forumId: req.params.id } });
+  const threads = await prisma.thread.count({ where: { forumId: routeId(req) } });
   if (threads) return res.status(400).json({ ok: false, error: "This community still has threads." });
-  await prisma.category.delete({ where: { id: req.params.id } });
+  await prisma.category.delete({ where: { id: routeId(req) } });
   res.json({ ok: true });
 });
 
 adminRouter.post("/categories/:id/featured", async (req, res) => {
-  const cat = await prisma.category.findUnique({ where: { id: req.params.id } });
+  const cat = await prisma.category.findUnique({ where: { id: routeId(req) } });
   if (!cat) return res.status(404).json({ ok: false, error: "Not found." });
   await prisma.category.update({ where: { id: cat.id }, data: { featured: !cat.featured } });
   res.json({ ok: true });
@@ -115,7 +165,7 @@ adminRouter.post("/ads", async (req, res) => {
 });
 
 adminRouter.delete("/ads/:id", async (req, res) => {
-  await prisma.ad.delete({ where: { id: req.params.id } });
+  await prisma.ad.delete({ where: { id: routeId(req) } });
   res.json({ ok: true });
 });
 
@@ -158,7 +208,7 @@ adminRouter.post("/games", async (req, res) => {
 });
 
 adminRouter.delete("/games/:id", async (req, res) => {
-  await prisma.trendingGame.delete({ where: { id: req.params.id } });
+  await prisma.trendingGame.delete({ where: { id: routeId(req) } });
   res.json({ ok: true });
 });
 
@@ -191,6 +241,6 @@ adminRouter.post("/providers", async (req, res) => {
 });
 
 adminRouter.delete("/providers/:id", async (req, res) => {
-  await prisma.provider.delete({ where: { id: req.params.id } });
+  await prisma.provider.delete({ where: { id: routeId(req) } });
   res.json({ ok: true });
 });
