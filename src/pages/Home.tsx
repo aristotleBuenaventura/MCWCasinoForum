@@ -283,7 +283,7 @@ export function Home() {
                   <span className="prose-muted">{a.name}</span>
                   <span>{a.count}</span>
                 </div>
-                <div className="h-1.5 rounded-sm bg-[#0e0c08] overflow-hidden">
+                <div className="h-1.5 rounded-sm bg-[#0e1526] overflow-hidden">
                   <div className="h-full bg-[var(--color-gold)]" style={{ width: `${(a.count / maxActivity) * 100}%` }} />
                 </div>
               </div>

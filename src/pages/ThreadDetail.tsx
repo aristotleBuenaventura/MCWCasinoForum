@@ -204,7 +204,7 @@ export function ThreadDetail() {
           <article key={post.id} className="xf-post">
             <MemberCard user={user} />
             <div className="xf-body">
-              <div className="flex items-center justify-between gap-2 text-[12px] prose-muted border-b border-[#2c2618] pb-2 mb-3">
+              <div className="flex items-center justify-between gap-2 text-[12px] prose-muted border-b border-[var(--xf-line-soft)] pb-2 mb-3">
                 <span>{forumTime(post.createdAt)}</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={share} className="hover:text-[var(--color-gold)] inline-flex items-center gap-1">
@@ -216,7 +216,7 @@ export function ThreadDetail() {
               <PostBodyView body={post.body} />
               {isOp && number === 1 && (
                 <a href="https://example.com/advertise" target="_blank" rel="noreferrer" className="block mt-4">
-                  <img src={ART.bannerExclusive} alt="Advertisement" className="w-full max-h-28 object-cover border border-[#2c2618]" />
+                  <img src={ART.bannerExclusive} alt="Advertisement" className="w-full max-h-28 object-cover border border-[var(--xf-line-soft)]" />
                 </a>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] prose-muted">

@@ -17,7 +17,7 @@ export function PostBodyView({ body }: { body: PostBody }) {
             url={block.url}
             type="image"
             lightbox
-            className="max-h-80 max-w-full rounded border border-[#2c2618]"
+            className="max-h-80 max-w-full rounded border border-[var(--xf-line-soft)]"
           />
         ),
       )}
