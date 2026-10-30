@@ -35,7 +35,7 @@ export function Search() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Advanced Search</h1>
+      <h1 className="page-title gold-text">Advanced Search</h1>
       <form onSubmit={onSubmit} className="forum-card p-4 flex gap-2">
         <input
           className="input"
@@ -53,7 +53,7 @@ export function Search() {
       {query && (
         <>
           <section className="space-y-3">
-            <h2 className="font-semibold">Threads ({results.threads.length})</h2>
+            <h2 className="section-title">Threads ({results.threads.length})</h2>
             {results.threads.map((t) => (
               <ThreadCard key={t.id} thread={t} />
             ))}
@@ -61,13 +61,13 @@ export function Search() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-semibold">Members ({results.users.length})</h2>
-            <div className="forum-card divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+            <h2 className="section-title">Members ({results.users.length})</h2>
+            <div className="forum-card divide-y divide-[var(--color-border)]">
               {results.users.map((u) => (
-                <Link key={u.id} to={`/profile/${u.username}`} className="flex gap-3 p-3 hover:bg-[white]/40">
+                <Link key={u.id} to={`/profile/${u.username}`} className="list-row flex gap-3 p-3">
                   <Avatar user={u} />
                   <div>
-                    <div className="font-semibold">{u.displayName}</div>
+                    <div className="font-semibold gold-text">{u.displayName}</div>
                     <div className="text-sm prose-muted">@{u.username}</div>
                   </div>
                 </Link>
@@ -77,12 +77,12 @@ export function Search() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-semibold">Comments ({results.comments.length})</h2>
+            <h2 className="section-title">Comments ({results.comments.length})</h2>
             <div className="space-y-2">
               {results.comments.map((c) => {
                 const author = getUser(c.authorId)
                 return (
-                  <Link key={c.id} to={`/thread/${c.threadId}`} className="forum-card p-3 block hover:bg-[white]/30">
+                  <Link key={c.id} to={`/thread/${c.threadId}`} className="forum-card list-row p-3 block">
                     <div className="text-sm prose-muted">@{author?.username}</div>
                     <p className="text-sm mt-1 line-clamp-2">{c.content}</p>
                   </Link>

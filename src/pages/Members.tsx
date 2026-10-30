@@ -25,7 +25,7 @@ export function Members() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Members</h1>
+        <h1 className="page-title gold-text">Members</h1>
         <input
           className="input max-w-xs"
           placeholder="Search members..."
@@ -33,17 +33,17 @@ export function Members() {
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <div className="forum-card divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+      <div className="forum-card divide-y divide-[var(--color-border)]">
         {members.map((u) => (
           <Link
             key={u.id}
             to={`/profile/${u.username}`}
-            className="flex gap-3 p-4 hover:bg-[white]/40 dark:hover:bg-[#243040]"
+            className="list-row flex gap-3 p-3"
           >
             <Avatar user={u} size={44} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{u.displayName}</span>
+                <span className="font-semibold gold-text">{u.displayName}</span>
                 <span className="text-sm prose-muted">@{u.username}</span>
                 {u.role !== 'user' && (
                   <span className="text-[10px] uppercase font-bold text-[var(--color-gold)]">{u.role}</span>

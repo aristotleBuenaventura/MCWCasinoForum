@@ -79,7 +79,7 @@ export function CreateThread() {
         {' / '}
         Post thread
       </div>
-      <h1 className="text-[16px] font-semibold gold-text mb-2">Post thread</h1>
+      <h1 className="page-title gold-text mb-2">Post thread</h1>
       <form onSubmit={onSubmit} className="xf-form">
         <div className="xf-form-row">
           <label htmlFor="thread-forum">Forum</label>

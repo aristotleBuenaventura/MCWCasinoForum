@@ -36,7 +36,7 @@ export function Moderation() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Moderation</h1>
+        <h1 className="page-title gold-text">Moderation</h1>
         <button
           type="button"
           className="btn btn-secondary"
@@ -51,10 +51,10 @@ export function Moderation() {
       </div>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-4 py-3 font-semibold border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="forum-list-head">
           Open reports ({openReports.length})
         </div>
-        <div className="divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+        <div className="divide-y divide-[var(--color-border)]">
           {openReports.map((r) => {
             const reporter = getUser(r.reporterId)
             return (
@@ -130,10 +130,10 @@ export function Moderation() {
       </section>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-4 py-3 font-semibold border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="forum-list-head">
           Manage users
         </div>
-        <div className="divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+        <div className="divide-y divide-[var(--color-border)]">
           {users.map((u) => (
             <div key={u.id} className="p-4 flex flex-wrap items-center justify-between gap-2">
               <div>

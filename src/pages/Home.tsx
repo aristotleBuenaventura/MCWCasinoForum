@@ -63,7 +63,7 @@ function FeedItem({ thread }: { thread: Thread }) {
           </button>
         </div>
         <div className="min-w-0 flex-1">
-          <Link to={`/thread/${thread.id}`} className="block text-[14px] font-semibold leading-snug hover:text-[var(--color-gold)]">
+          <Link to={`/thread/${thread.id}`} className="block text-[14px] font-semibold leading-snug gold-text hover:underline">
             {thread.title}
           </Link>
           <p className="text-[12px] prose-muted mt-1 line-clamp-1">{thread.content}</p>
@@ -149,19 +149,19 @@ export function Home() {
         <div className="flex items-center gap-4 px-4 py-3">
           <img src={ART.hero} alt="MCW casino crest" className="h-[88px] w-[88px] rounded-full object-cover shrink-0 border border-[#d7ae55]/40" />
           <div className="min-w-0">
-            <h1 className="text-[22px] md:text-[26px] font-extrabold gold-text leading-tight tracking-wide">
-              THE GRAND FORUM FOR<br className="hidden md:block" /> ONLINE CASINO PLAYERS
+            <h1 className="text-[18px] font-semibold gold-text leading-snug">
+              The grand forum for online casino players
             </h1>
             <p className="text-[12px] prose-muted mt-1">
               Discuss, review and share strategies with a verified player community.
             </p>
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               {!currentUser ? (
-                <Link to="/register" className="btn btn-primary">Join the Community</Link>
+                <Link to="/register" className="btn btn-primary">Register</Link>
               ) : (
-                <Link to="/create" className="btn btn-primary">Create Post</Link>
+                <Link to="/create" className="btn btn-primary">Post thread</Link>
               )}
-              <Link to="/communities" className="btn btn-secondary">Explore Discussions</Link>
+              <Link to="/communities" className="btn btn-secondary">Forum list</Link>
               <span className="text-[11px] prose-muted ml-1">Active members {members.toLocaleString()}</span>
             </div>
           </div>
@@ -193,7 +193,7 @@ export function Home() {
           <div className="section-title">Latest casino reviews</div>
           <div className="flex items-center gap-1.5">
             <div className="relative">
-              <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#929cb3]" />
+              <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 prose-muted" />
               <input
                 value={reviewQuery}
                 onChange={(e) => setReviewQuery(e.target.value)}
@@ -209,7 +209,7 @@ export function Home() {
             <Link key={t.id} to={`/thread/${t.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
               <ForumImage url={t.mediaUrl} fallback={REVIEW_ART[t.id]} className="h-24 w-full object-cover" />
               <div className="p-2.5">
-                <div className="text-[13px] font-semibold line-clamp-2">{t.title.replace(/ review.*/i, '')}</div>
+                <div className="text-[13px] font-semibold gold-text line-clamp-2">{t.title.replace(/ review.*/i, '')}</div>
                 <div className="mt-1"><Stars /></div>
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {(t.tags.length ? t.tags : ['Community Review']).map((tag) => (
@@ -230,7 +230,7 @@ export function Home() {
             <Link key={t.id} to={`/thread/${t.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
               <ForumImage url={t.mediaUrl} fallback={GUIDE_ART[t.id]} className="h-[72px] w-full object-cover" />
               <div className="p-2.5">
-                <div className="text-[13px] font-semibold leading-snug">{t.title}</div>
+                <div className="text-[13px] font-semibold gold-text leading-snug">{t.title}</div>
                 <div className="text-[11px] prose-muted mt-1">{t.views} reads</div>
               </div>
             </Link>
@@ -283,7 +283,7 @@ export function Home() {
                   <span className="prose-muted">{a.name}</span>
                   <span>{a.count}</span>
                 </div>
-                <div className="h-1.5 rounded bg-[#0e1526] overflow-hidden">
+                <div className="h-1.5 rounded-sm bg-[#0e0c08] overflow-hidden">
                   <div className="h-full bg-[var(--color-gold)]" style={{ width: `${(a.count / maxActivity) * 100}%` }} />
                 </div>
               </div>
@@ -314,7 +314,7 @@ export function Home() {
               <Link key={p.id} to={p.url || '/communities'} className="forum-card p-2 flex items-center gap-3 hover:border-[var(--color-gold)]/40">
                 <img src={p.imageUrl} alt="" className="h-10 w-16 object-cover rounded" />
                 <div>
-                  <div className="text-[13px] font-semibold">{p.name}</div>
+                  <div className="text-[13px] font-semibold gold-text">{p.name}</div>
                   <Stars value={p.rating} />
                 </div>
               </Link>

@@ -30,10 +30,10 @@ export function Communities() {
   return (
     <div className="max-w-[1100px] mx-auto">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-[15px] font-semibold">Forum list</h1>
+        <h1 className="page-title gold-text">Forum list</h1>
         <button
           type="button"
-          className={`btn h-8 text-[12px] ${newOnly ? 'btn-primary' : 'btn-accent'}`}
+          className={`btn ${newOnly ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setParams(newOnly ? {} : { new: '1' })}
         >
           <Zap size={13} /> New posts

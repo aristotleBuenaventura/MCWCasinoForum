@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --color-gold: #d7ae55;
-  --color-gold-bright: #f0cf79;
+  --color-gold-bright: #e8c878;
   --color-gold-dim: #8a6d32;
-  --color-bg: #0b1020;
-  --color-nav: #11182b;
-  --color-panel: #171f33;
-  --color-panel-2: #1c263b;
-  --color-border: #29344b;
-  --color-muted: #929cb3;
-  --color-ink: #e8eaf0;
+  --color-bg: #0e0c08;
+  --color-nav: #14110c;
+  --color-panel: #12100b;
+  --color-panel-2: #16130d;
+  --color-border: #3a2f18;
+  --color-muted: #8f8878;
+  --color-ink: #e6e2d6;
   --color-danger: #d4564a;
   --color-success: #38b982;
-  --color-accent: #e08a2a;
+  --color-accent: #c9a046;
 }
 
 * { box-sizing: border-box; }
@@ -26,7 +26,8 @@ body {
   font-family: var(--font-sans);
   color: var(--color-ink);
   background: var(--color-bg);
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -36,15 +37,22 @@ button, input, textarea, select { font: inherit; }
 .forum-card {
   background: var(--color-panel);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 4px;
 }
 
 .section-title {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--color-gold);
-  font-weight: 700;
+  font-weight: 600;
+}
+
+.page-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.3;
 }
 
 @layer components {
@@ -53,10 +61,12 @@ button, input, textarea, select { font: inherit; }
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    border-radius: 7px;
-    padding: 0.38rem 0.8rem;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 3px;
     font-weight: 600;
     font-size: 13px;
+    line-height: 1;
     border: 1px solid transparent;
     cursor: pointer;
     transition: 0.15s ease;
@@ -70,17 +80,15 @@ button, input, textarea, select { font: inherit; }
     outline-offset: 1px;
   }
 
-  .btn-primary {
-    background: linear-gradient(180deg, #f0cf79, #c9a046);
-    color: #1a1408;
-  }
-
-  .btn-primary:hover:not(:disabled) { filter: brightness(1.06); }
-
+  .btn-primary,
   .btn-accent {
-    background: linear-gradient(180deg, #efb25a, #d07a1c);
+    background: #c9a046;
+    border-color: #8a6d32;
     color: #1a1408;
   }
+
+  .btn-primary:hover:not(:disabled),
+  .btn-accent:hover:not(:disabled) { background: #d7ae55; }
 
   .btn-secondary {
     background: var(--color-panel-2);
@@ -88,13 +96,13 @@ button, input, textarea, select { font: inherit; }
     color: var(--color-ink);
   }
 
-  .btn-secondary:hover:not(:disabled) { border-color: var(--color-gold-dim); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--color-gold-dim); color: var(--color-gold); }
 
-  .btn-danger { background: var(--color-danger); color: white; }
+  .btn-danger { background: var(--color-danger); color: white; border-color: #8a2a24; }
 
   .btn-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     flex-shrink: 0;
   }
@@ -102,14 +110,15 @@ button, input, textarea, select { font: inherit; }
   .input {
     width: 100%;
     border: 1px solid var(--color-border);
-    border-radius: 7px;
-    padding: 0.42rem 0.7rem;
-    background: #0e1526;
+    border-radius: 3px;
+    padding: 0.35rem 0.65rem;
+    background: #0e0c08;
     color: var(--color-ink);
   }
 
   .input:focus {
-    outline: 2px solid color-mix(in oklab, var(--color-gold) 35%, transparent);
+    outline: 1px solid color-mix(in oklab, var(--color-gold) 45%, transparent);
+    outline-offset: 0;
     border-color: var(--color-gold);
   }
 }
@@ -119,7 +128,7 @@ button, input, textarea, select { font: inherit; }
 .star { color: #e8c547; }
 
 .nav-link {
-  color: #c5ccda;
+  color: #d5d0c4;
   font-weight: 500;
   font-size: 13px;
   padding: 0.28rem 0.55rem;
@@ -129,7 +138,8 @@ button, input, textarea, select { font: inherit; }
 .nav-link.active { color: var(--color-gold-bright); }
 
 .table-row { border-bottom: 1px solid var(--color-border); }
-.table-row:hover { background: rgba(215, 174, 85, 0.04); }
+.table-row:hover,
+.list-row:hover { background: rgba(215, 174, 85, 0.04); }
 
 .forum-list {
   border: 1px solid #3a2f18;
@@ -145,6 +155,9 @@ button, input, textarea, select { font: inherit; }
   padding: 8px 12px;
   border-bottom: 1px solid #3a2f18;
   background: #16130d;
+  color: var(--color-gold);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .forum-row {
@@ -279,9 +292,9 @@ button, input, textarea, select { font: inherit; }
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
   font-size: 13px;
-  color: #c9d0de;
+  color: #d5d0c4;
 }
 
 .side-link:hover { background: rgba(255,255,255,0.04); }
@@ -299,7 +312,7 @@ button, input, textarea, select { font: inherit; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: 3px;
   background: rgba(56, 185, 130, 0.12);
   color: var(--color-success);
   border: 1px solid rgba(56, 185, 130, 0.28);
@@ -310,7 +323,7 @@ button, input, textarea, select { font: inherit; }
   color: var(--color-gold);
   background: rgba(215, 174, 85, 0.1);
   border: 1px solid rgba(215, 174, 85, 0.22);
-  border-radius: 999px;
+  border-radius: 3px;
   padding: 2px 7px;
 }
 
@@ -330,7 +343,7 @@ button, input, textarea, select { font: inherit; }
 }
 
 .site-footer {
-  background: #0d1424;
+  background: #0e0c08;
   border-top: 1px solid var(--color-border);
 }
 

@@ -33,10 +33,10 @@ export function RightRail() {
         <ul>
           {games.map((g) => (
             <li key={g.id}>
-              <Link to={g.url || '/communities'} className="flex items-center gap-2.5 px-3 py-2 hover:bg-white/[0.03]">
+              <Link to={g.url || '/communities'} className="list-row flex items-center gap-2.5 px-3 py-2">
                 <img src={g.imageUrl} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium truncate">{g.title}</div>
+                  <div className="text-[13px] font-medium gold-text truncate">{g.title}</div>
                   <div className="text-[11px] prose-muted truncate">{g.subtitle}</div>
                 </div>
               </Link>
@@ -98,8 +98,8 @@ export function RightRail() {
         <ul>
           {featured.map((c) => (
             <li key={c.id}>
-              <Link to={`/communities/${c.slug}`} className="block px-3 py-2 hover:bg-white/[0.03]">
-                <div className="text-[13px] font-medium">{c.name}</div>
+              <Link to={`/communities/${c.slug}`} className="list-row block px-3 py-2">
+                <div className="text-[13px] font-medium gold-text">{c.name}</div>
                 <div className="text-[11px] prose-muted">{deepCount(c.id)} threads</div>
               </Link>
             </li>

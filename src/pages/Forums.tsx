@@ -7,8 +7,8 @@ export function Forums() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Forum Listing</h1>
-      <div className="forum-card overflow-hidden divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+      <h1 className="page-title gold-text">Forum Listing</h1>
+      <div className="forum-card overflow-hidden divide-y divide-[var(--color-border)]">
         {state.categories.map((c) => {
           const latest = [...state.threads]
             .filter((t) => t.forumId === c.id)
@@ -18,7 +18,7 @@ export function Forums() {
             <section key={c.id} id={c.id} className="p-4 scroll-mt-20">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold text-lg text-[var(--color-gold)]">{c.name}</h2>
+                  <h2 className="font-semibold gold-text">{c.name}</h2>
                   <p className="text-sm prose-muted mt-1">{c.description}</p>
                   <div className="text-xs prose-muted mt-2">
                     {c.threadCount} threads · {c.postCount} messages

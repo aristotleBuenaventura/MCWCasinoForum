@@ -164,14 +164,14 @@ export function ThreadDetail() {
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-[18px] font-semibold gold-text leading-snug max-w-3xl">
+        <h1 className="page-title gold-text leading-snug max-w-3xl">
           {thread.pinned && <Pin size={16} className="inline mr-1 -mt-0.5" />}
           {thread.title}
         </h1>
         {currentUser ? (
-          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-accent h-8 text-[12px]">Post thread</Link>
+          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-primary">Post thread</Link>
         ) : (
-          <LoginLink className="btn btn-secondary h-8 text-[12px]">Log in to post</LoginLink>
+          <LoginLink className="btn btn-secondary">Log in to post</LoginLink>
         )}
       </div>
 

@@ -28,15 +28,13 @@ export function Notifications() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Notifications</h1>
-      <div className="forum-card divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+      <h1 className="page-title gold-text">Notifications</h1>
+      <div className="forum-card divide-y divide-[var(--color-border)]">
         {items.map((n) => (
           <Link
             key={n.id}
             to={n.link}
-            className={`block p-4 hover:bg-[white]/40 dark:hover:bg-[#243040] ${
-              n.read ? '' : 'bg-[white]/30'
-            }`}
+            className={`list-row block p-3 ${n.read ? '' : 'bg-[rgba(215,174,85,0.06)]'}`}
           >
             <div className="text-sm">{n.message}</div>
             <div className="text-xs prose-muted mt-1">{timeAgo(n.createdAt)}</div>

@@ -65,17 +65,17 @@ export function CommunityDetail() {
 
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-[16px] font-semibold gold-text">{category.name}</h1>
+          <h1 className="page-title gold-text">{category.name}</h1>
           <p className="text-[12px] prose-muted">{category.description}</p>
         </div>
         <div className="flex items-center gap-2">
           {currentUser ? (
-            <Link to={`/create?forum=${category.id}`} className="btn btn-accent h-8 text-[12px]">Post thread</Link>
+            <Link to={`/create?forum=${category.id}`} className="btn btn-primary">Post thread</Link>
           ) : (
-            <LoginLink className="btn btn-secondary h-8 text-[12px]">Log in to post</LoginLink>
+            <LoginLink className="btn btn-secondary">Log in to post</LoginLink>
           )}
           <div className="relative">
-            <button type="button" className="btn btn-secondary h-8 text-[12px]" onClick={() => setFiltersOpen((v) => !v)}>
+            <button type="button" className="btn btn-secondary" onClick={() => setFiltersOpen((v) => !v)}>
               Filters <ChevronDown size={12} />
             </button>
             {filtersOpen && (

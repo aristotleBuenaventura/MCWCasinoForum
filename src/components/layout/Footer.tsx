@@ -8,7 +8,7 @@ export function Footer() {
           <div className="flex items-center gap-2">
             <img src="/assets/hero-crest.jpg" alt="" className="h-8 w-8 rounded object-cover" />
             <div>
-              <div className="font-extrabold gold-text tracking-wide">MCW FORUM</div>
+              <div className="font-semibold gold-text">MCW Forum</div>
               <div className="text-[11px] prose-muted">The ultimate hub for casino players.</div>
             </div>
           </div>

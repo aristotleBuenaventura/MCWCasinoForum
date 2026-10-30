@@ -183,8 +183,8 @@ export function Admin() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Admin dashboard</h1>
-          <p className="text-sm prose-muted">Set ads, trending games, featured communities, and providers. Same access for admins and moderators.</p>
+          <h1 className="page-title gold-text">Admin dashboard</h1>
+          <p className="text-[12px] prose-muted">Set ads, trending games, featured communities, and providers. Same access for admins and moderators.</p>
         </div>
         <button
           type="button"

@@ -32,8 +32,8 @@ export function Header() {
         <Link to="/" className="flex items-center gap-2 shrink-0">
           <img src="/assets/hero-crest.jpg" alt="" className="h-7 w-7 rounded object-cover" />
           <div className="leading-none">
-            <div className="text-[13px] font-extrabold tracking-wide gold-text">MCW</div>
-            <div className="text-[9px] uppercase tracking-[0.16em] text-[#929cb3]">Forum</div>
+            <div className="text-[13px] font-semibold gold-text">MCW</div>
+            <div className="text-[9px] uppercase tracking-[0.16em] prose-muted">Forum</div>
           </div>
         </Link>
 
@@ -47,18 +47,18 @@ export function Header() {
 
         <form onSubmit={onSearch} className="hidden md:flex flex-1 max-w-sm ml-2">
           <div className="relative w-full">
-            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#929cb3]" />
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 prose-muted" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search discussions, games, and reviews"
-              className="input pl-9 h-8 text-[13px]"
+              className="input pl-9 h-7 text-[13px]"
             />
           </div>
         </form>
 
         <div className="flex items-center gap-1.5 ml-auto">
-          <Link to="/create" className="btn btn-accent h-8 px-3 hidden sm:inline-flex">Create Post</Link>
+          <Link to="/create" className="btn btn-primary hidden sm:inline-flex">Post thread</Link>
           {currentUser ? (
             <>
               <Link to="/notifications" className="btn btn-secondary btn-icon relative" aria-label="Notifications">
@@ -69,16 +69,16 @@ export function Header() {
                   </span>
                 )}
               </Link>
-              {isMod && <Link to="/admin" className="btn btn-secondary h-8 hidden sm:inline-flex">Admin</Link>}
+              {isMod && <Link to="/admin" className="btn btn-secondary hidden sm:inline-flex">Admin</Link>}
               <Link to={`/profile/${currentUser.username}`} className="rounded-full focus-visible:outline-2 focus-visible:outline-[color-mix(in_oklab,var(--color-gold)_55%,transparent)] focus-visible:outline-offset-1" aria-label="Your profile">
                 <Avatar user={currentUser} size={26} />
               </Link>
-              <button type="button" className="btn btn-secondary h-8 hidden md:inline-flex" onClick={logout}>Log out</button>
+              <button type="button" className="btn btn-secondary hidden md:inline-flex" onClick={logout}>Log out</button>
             </>
           ) : (
             <>
-              <LoginLink className="btn btn-secondary h-8">Log in</LoginLink>
-              <Link to="/register" className="btn btn-primary h-8">Register</Link>
+              <LoginLink className="btn btn-secondary">Log in</LoginLink>
+              <Link to="/register" className="btn btn-primary">Register</Link>
             </>
           )}
           <button
@@ -97,12 +97,12 @@ export function Header() {
         <div className="md:hidden border-t border-[var(--color-border)] px-3 py-2 space-y-1 bg-[var(--color-nav)]">
           <form onSubmit={onSearch} className="pb-2">
             <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#929cb3]" />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 prose-muted" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search the forum"
-                className="input pl-9 h-8 text-[13px]"
+                className="input pl-9 h-7 text-[13px]"
               />
             </div>
           </form>

@@ -214,7 +214,7 @@ export function Profile() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="text-[22px] font-semibold leading-tight">{user.username}</h1>
+                <h1 className="page-title gold-text leading-tight">{user.username}</h1>
                 <span className={`role-pill mt-1 ${title.className}`}>{title.text}</span>
               </div>
               <div className="flex flex-wrap gap-1.5">

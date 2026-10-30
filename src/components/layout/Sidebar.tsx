@@ -24,13 +24,13 @@ export function Sidebar() {
   return (
     <aside className="space-y-4">
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 bg-[white] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="forum-list-head">
           Our Top Forums
         </div>
-        <ul className="divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+        <ul className="divide-y divide-[var(--color-border)]">
           {state.categories.slice(0, 5).map((c) => (
             <li key={c.id}>
-              <Link to={`/forums#${c.id}`} className="block px-3 py-2.5 hover:bg-[white]/60 dark:hover:bg-[#243040]">
+              <Link to={`/forums#${c.id}`} className="list-row block px-3 py-2.5">
                 <div className="font-medium text-sm text-[var(--color-gold)]">{c.name}</div>
                 <div className="text-xs prose-muted">
                   {c.threadCount} threads · {c.postCount} posts
@@ -42,10 +42,10 @@ export function Sidebar() {
       </section>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 bg-[white] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="forum-list-head">
           Top Contributors this Month
         </div>
-        <ul className="divide-y divide-[var(--color-border)] dark:divide-[#2a3542]">
+        <ul className="divide-y divide-[var(--color-border)]">
           {topContributors.map(({ user, replies }) => (
             <li key={user!.id} className="px-3 py-2.5 flex items-center justify-between gap-2 text-sm">
               <Link to={`/profile/${user!.username}`} className="text-[var(--color-gold)] font-medium hover:underline">
@@ -61,7 +61,7 @@ export function Sidebar() {
       </section>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 bg-[white] dark:bg-[#243040] font-semibold text-sm border-b border-[var(--color-border)] dark:border-[#2a3542]">
+        <div className="forum-list-head">
           Forum statistics
         </div>
         <dl className="px-3 py-3 grid grid-cols-2 gap-y-2 text-sm">
