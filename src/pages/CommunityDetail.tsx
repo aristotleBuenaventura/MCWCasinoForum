@@ -2,6 +2,7 @@ import { ChevronDown, Pin, ThumbsUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
@@ -71,7 +72,7 @@ export function CommunityDetail() {
           {currentUser ? (
             <Link to={`/create?forum=${category.id}`} className="btn btn-accent h-8 text-[12px]">Post thread</Link>
           ) : (
-            <Link to="/login" className="btn btn-secondary h-8 text-[12px]">Log in to post</Link>
+            <LoginLink className="btn btn-secondary h-8 text-[12px]">Log in to post</LoginLink>
           )}
           <div className="relative">
             <button type="button" className="btn btn-secondary h-8 text-[12px]" onClick={() => setFiltersOpen((v) => !v)}>

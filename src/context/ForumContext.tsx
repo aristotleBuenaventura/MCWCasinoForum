@@ -31,7 +31,9 @@ type RegisterInput = {
   username: string
   email: string
   password: string
-  displayName: string
+  displayName?: string
+  dateOfBirth: string
+  turnstileToken: string
 }
 
 type CreateThreadInput = {
@@ -57,6 +59,9 @@ type ForumContextValue = {
   register: (input: RegisterInput) => { ok: true } | { ok: false; error: string }
   login: (usernameOrEmail: string, password: string) => { ok: true } | { ok: false; error: string }
   logout: () => void
+  loginOpen: boolean
+  openLogin: () => void
+  closeLogin: () => void
   updateProfile: (patch: Partial<Pick<User, 'displayName' | 'bio' | 'avatar'>>) => void
   createThread: (input: CreateThreadInput) => Promise<Thread | { error: string }>
   updateThread: (id: string, patch: Partial<Pick<Thread, 'title' | 'content' | 'body' | 'mediaUrl' | 'mediaType'>>) => void
@@ -157,8 +162,21 @@ function slugify(value: string) {
     .replace(/^-|-$/g, '')
 }
 
+function ageFromDob(iso: string) {
+  const dob = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(dob.getTime())) return 0
+  const now = new Date()
+  let age = now.getFullYear() - dob.getFullYear()
+  const monthDelta = now.getMonth() - dob.getMonth()
+  if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < dob.getDate())) age -= 1
+  return age
+}
+
 export function ForumProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ForumState>(() => loadState())
+  const [loginOpen, setLoginOpen] = useState(false)
+  const openLogin = useCallback(() => setLoginOpen(true), [])
+  const closeLogin = useCallback(() => setLoginOpen(false), [])
 
   useEffect(() => {
     let cancelled = false
@@ -245,6 +263,9 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     }
     if (!email.includes('@')) return { ok: false, error: 'Enter a valid email.' }
     if (input.password.length < 6) return { ok: false, error: 'Password must be at least 6 characters.' }
+    if (!input.turnstileToken) return { ok: false, error: 'Please complete the verification check.' }
+    if (!input.dateOfBirth) return { ok: false, error: 'Date of birth is required.' }
+    if (ageFromDob(input.dateOfBirth) < 18) return { ok: false, error: 'You must be 18 or older to register.' }
     if (state.users.some((u) => u.username === username)) {
       return { ok: false, error: 'Username already taken.' }
     }
@@ -257,15 +278,17 @@ export function ForumProvider({ children }: { children: ReactNode }) {
       username,
       email,
       password: input.password,
-      displayName: input.displayName.trim() || username,
+      displayName: input.displayName?.trim() || username,
       bio: '',
       avatar: '',
       role: 'user',
       banned: false,
       createdAt: new Date().toISOString(),
+      dateOfBirth: input.dateOfBirth,
     }
 
     setState((s) => ({ ...s, users: [...s.users, user], currentUserId: user.id }))
+    setLoginOpen(false)
     return { ok: true }
   }
 
@@ -277,6 +300,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     }
     if (user.banned) return { ok: false, error: 'This account has been removed by a moderator.' }
     setState((s) => ({ ...s, currentUserId: user.id }))
+    setLoginOpen(false)
     return { ok: true }
   }
 
@@ -682,6 +706,9 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     register,
     login,
     logout,
+    loginOpen,
+    openLogin,
+    closeLogin,
     updateProfile,
     createThread,
     updateThread,

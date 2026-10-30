@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { LoginLink } from '../components/LoginModal'
 import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
@@ -38,7 +39,7 @@ export function CreateThread() {
         <div className="xf-gate mx-auto">
           <p className="prose-muted">You need an account to create a thread.</p>
           <div className="mt-3 flex justify-center gap-2">
-            <Link to="/login" className="btn-post">Log in</Link>
+            <LoginLink className="btn-post">Log in</LoginLink>
             <Link to="/register" className="btn btn-secondary" style={{ borderRadius: 3, height: 28, fontSize: 12 }}>Sign up</Link>
           </div>
         </div>

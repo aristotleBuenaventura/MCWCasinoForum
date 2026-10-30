@@ -21,6 +21,7 @@ export interface User {
   role: Role
   banned: boolean
   createdAt: string
+  dateOfBirth?: string
 }
 
 export interface ForumCategory {

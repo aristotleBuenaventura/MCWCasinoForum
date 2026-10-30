@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { LoginLink } from '../components/LoginModal'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
@@ -21,9 +22,9 @@ export function Moderation() {
     return (
       <div className="forum-card p-6 text-center">
         <p className="prose-muted">Moderator access required.</p>
-        <Link to="/login" className="btn btn-primary mt-3 inline-flex">
+        <LoginLink className="btn btn-primary mt-3 inline-flex">
           Log in as moderator
-        </Link>
+        </LoginLink>
         <p className="text-xs prose-muted mt-3">Use moderator / moderator123</p>
       </div>
     )

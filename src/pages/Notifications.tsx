@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
 
@@ -16,9 +17,9 @@ export function Notifications() {
     return (
       <div className="forum-card p-6 text-center">
         <p className="prose-muted">Log in to see notifications.</p>
-        <Link to="/login" className="btn btn-primary mt-3 inline-flex">
+        <LoginLink className="btn btn-primary mt-3 inline-flex">
           Log in
-        </Link>
+        </LoginLink>
       </div>
     )
   }

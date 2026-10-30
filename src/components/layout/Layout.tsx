@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import { LoginModal } from '../LoginModal'
 import { Footer } from './Footer'
 import { Header } from './Header'
 import { LeftRail } from './LeftRail'
@@ -8,6 +9,7 @@ export function Layout({ rails = 'none' }: { rails?: 'none' | 'left' | 'both' })
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
+      <LoginModal />
       <main className="flex-1 w-full px-2 lg:px-3 py-3">
         {rails === 'both' && (
           <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_300px] gap-3">

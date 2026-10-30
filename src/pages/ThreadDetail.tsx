@@ -2,6 +2,7 @@ import { Calendar, Flag, Heart, MessageSquare, Pin, Share2, ThumbsUp, Trash2 } f
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
+import { LoginLink } from '../components/LoginModal'
 import { PostBodyView } from '../components/PostBodyView'
 import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
@@ -170,7 +171,7 @@ export function ThreadDetail() {
         {currentUser ? (
           <Link to={`/create?forum=${thread.forumId}`} className="btn btn-accent h-8 text-[12px]">Post thread</Link>
         ) : (
-          <Link to="/login" className="btn btn-secondary h-8 text-[12px]">Log in to post</Link>
+          <LoginLink className="btn btn-secondary h-8 text-[12px]">Log in to post</LoginLink>
         )}
       </div>
 
@@ -311,7 +312,7 @@ export function ThreadDetail() {
           </form>
         ) : (
           <p className="text-[12px] prose-muted px-3 py-3">
-            <Link to="/login" className="gold-text hover:underline">Log in</Link> to reply.
+            <LoginLink className="gold-text hover:underline bg-transparent border-0 p-0 cursor-pointer">Log in</LoginLink> to reply.
           </p>
         )}
       </section>

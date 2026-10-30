@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useForum } from '../../context/ForumContext'
 import { Avatar } from '../Avatar'
+import { LoginLink } from '../LoginModal'
 
 const links = [
   { to: '/', label: 'Home' },
@@ -74,8 +75,8 @@ export function Header() {
             </>
           ) : (
             <>
-              <Link to="/login" className="btn btn-secondary h-8">Log in</Link>
-              <Link to="/register" className="btn btn-primary h-8">Join</Link>
+              <LoginLink className="btn btn-secondary h-8">Log in</LoginLink>
+              <Link to="/register" className="btn btn-primary h-8">Register</Link>
             </>
           )}
           <button type="button" className="lg:hidden btn btn-secondary h-8 w-8 p-0" onClick={() => setOpen((v) => !v)}>

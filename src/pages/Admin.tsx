@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { LoginLink } from '../components/LoginModal'
 import { useToast } from '../components/Toast'
 import { MediaOrPlaceholder } from '../components/Placeholder'
 import { useForum } from '../context/ForumContext'
@@ -99,7 +100,7 @@ export function Admin() {
     return (
       <div className="forum-card p-6 text-center max-w-lg mx-auto">
         <p className="prose-muted">Admin / moderator access required.</p>
-        <Link to="/login" className="btn btn-primary mt-3 inline-flex">Log in</Link>
+        <LoginLink className="btn btn-primary mt-3 inline-flex">Log in</LoginLink>
         <p className="text-xs prose-muted mt-3">Use moderator / moderator123 or admin / admin123</p>
       </div>
     )
