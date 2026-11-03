@@ -12,6 +12,7 @@ import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
 import { AdRotator } from '../components/AdRotator'
 import { useForum } from '../context/ForumContext'
+import { setActiveThreadTranslations } from '../i18n/threadTranslations'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Comment, PostBody, Thread, User } from '../types'
@@ -88,19 +89,30 @@ export function ThreadDetail() {
 
   useEffect(() => {
     if (!id) return
-    void api<{ thread: Thread }>(`/api/threads/${id}`).then((res) => {
+    void api<{ thread: Thread; translations?: Record<string, string> }>(`/api/threads/${id}`).then((res) => {
       if (!res.ok) {
         setThread(null)
+        setActiveThreadTranslations(null)
         setLoading(false)
         return
       }
-      setThread(res.thread)
-      setSaved(!!res.thread.bookmarked)
-      cacheThreads([res.thread])
-      if (res.thread.author) cacheUsers([res.thread.author])
+      const translations = res.thread.translations || res.translations || undefined
+      const next = translations ? { ...res.thread, translations } : res.thread
+      setThread(next)
+      setActiveThreadTranslations(translations || null)
+      setSaved(!!next.bookmarked)
+      cacheThreads([next])
+      if (next.author) cacheUsers([next.author])
+      // If WPML resolved to a different post id for this language, sync the URL
+      if (next.id && next.id !== id) {
+        const qs = params.toString()
+        navigate(`/thread/${next.id}${qs ? `?${qs}` : ''}`, { replace: true })
+      }
       setLoading(false)
     })
-  }, [id, cacheThreads, cacheUsers])
+    return () => setActiveThreadTranslations(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only refetch when route thread id changes
+  }, [id, cacheThreads, cacheUsers, navigate])
 
   useEffect(() => {
     if (!id) return

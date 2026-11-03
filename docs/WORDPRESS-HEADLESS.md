@@ -27,14 +27,30 @@ npm run dev
 
 Demo users (same as before): `alicewins` / `password123`, `admin` / `admin123`, etc.
 
-## WPML
+## WPML + Bengali (`/bn`)
 
-The plugin registers WPML-friendly content:
+- Languages: English (default) + Bengali (`bn`)
+- React routes: `/` (EN) and `/bn/...` (BN) via Vite `basename`
+- API: React appends `?lang=bn` on `/api/*` when under `/bn`
+- UI chrome: `src/i18n/` (header, rails, footer, home hero)
+- Content: translate threads/taxonomies in WPML admin (or `php wordpress/_wpml_seed_bn.php` for demo BN posts)
 
-- Taxonomy `mcw_forum` (communities)
-- CPTs `mcw_thread`, `mcw_reply`, `mcw_ad`, `mcw_game`, `mcw_provider`
+Setup helpers (local only, gitignored under `wordpress/_*.php`):
 
-Install [WPML](https://wpml.org/) in WordPress, mark those types/taxonomies as translatable, then have React request the language WPML exposes on REST (e.g. `?lang=en`). UI chrome strings still need React i18n (or WPML String Translation + an endpoint).
+```bash
+php wordpress/_wpml_setup_bn.php
+php wordpress/_wpml_seed_bn.php
+```
+
+CPTs/taxonomies marked translatable: `mcw_thread`, `mcw_reply`, `mcw_ad`, `mcw_game`, `mcw_provider`, `mcw_forum`.
+
+### Comment translations (once, reused)
+
+Replies stay on one shared thread. On create (and lazy on first read), MCW stores `mcw_body_en` + `mcw_body_bn`. Viewers get the version for `?lang=`.
+
+- Default engine: MyMemory (free). Optional: set `MCW_DEEPL_KEY` for DeepL.
+- Override: WordPress filter `mcw_translate_text`.
+- Backfill: `php wordpress/_wpml_backfill_comment_i18n.php`
 
 ## Express fallback
 

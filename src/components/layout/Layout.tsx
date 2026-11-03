@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
+import { useLocale } from '../../i18n/locale'
 import { LoginModal } from '../LoginModal'
 import { Footer } from './Footer'
 import { Header } from './Header'
@@ -6,6 +8,12 @@ import { LeftRail } from './LeftRail'
 import { RightRail } from './RightRail'
 
 export function Layout({ rails = 'none' }: { rails?: 'none' | 'left' | 'both' }) {
+  const { lang } = useLocale()
+
+  useEffect(() => {
+    document.documentElement.lang = lang === 'bn' ? 'bn' : 'en'
+  }, [lang])
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />

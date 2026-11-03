@@ -20,6 +20,7 @@ require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-cpt.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-cors.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-auth.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-serialize.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-translate.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-forum.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-rest.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-seed.php';

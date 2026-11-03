@@ -2,13 +2,28 @@ export type ApiResult<T = Record<string, unknown>> =
   | ({ ok: true } & T)
   | { ok: false; error: string; status: number }
 
+function currentLang(): 'en' | 'bn' {
+  if (typeof window === 'undefined') return 'en'
+  const p = window.location.pathname
+  return p === '/bn' || p.startsWith('/bn/') ? 'bn' : 'en'
+}
+
+/** Append WPML lang query so headless REST returns the active language. */
+function withLang(path: string): string {
+  const lang = currentLang()
+  if (lang === 'en') return path
+  const join = path.includes('?') ? '&' : '?'
+  if (/[?&]lang=/.test(path)) return path
+  return `${path}${join}lang=${lang}`
+}
+
 export async function api<T = Record<string, unknown>>(
   path: string,
   init?: RequestInit,
 ): Promise<ApiResult<T>> {
   try {
     const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData
-    const res = await fetch(path, {
+    const res = await fetch(withLang(path), {
       credentials: 'include',
       ...init,
       headers: isForm

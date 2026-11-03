@@ -9,6 +9,172 @@ class MCW_Forum_REST
     public static function init(): void
     {
         add_action('rest_api_init', [self::class, 'register_routes']);
+        add_filter('rest_request_before_callbacks', [self::class, 'maybe_switch_lang'], 10, 3);
+    }
+
+    /**
+     * Honor ?lang=bn (or WPML language) on mcw/v1 routes for headless React.
+     *
+     * @param mixed            $response
+     * @param array            $handler
+     * @param WP_REST_Request  $request
+     * @return mixed
+     */
+    public static function maybe_switch_lang($response, $handler, $request)
+    {
+        $route = (string) $request->get_route();
+        if (!str_starts_with($route, '/mcw/v1')) {
+            return $response;
+        }
+
+        $lang = self::request_lang($request);
+        if ($lang === '') {
+            return $response;
+        }
+
+        if (has_action('wpml_switch_language')) {
+            do_action('wpml_switch_language', $lang);
+        } elseif (class_exists('SitePress')) {
+            global $sitepress;
+            if ($sitepress instanceof SitePress && method_exists($sitepress, 'switch_lang')) {
+                $sitepress->switch_lang($lang, true);
+            }
+        }
+
+        return $response;
+    }
+
+    private static function request_lang(WP_REST_Request $request): string
+    {
+        $lang = sanitize_key((string) $request->get_param('lang'));
+        return in_array($lang, ['en', 'bn'], true) ? $lang : '';
+    }
+
+    /**
+     * Restrict WP_Query to WPML language (falls back to icl_translations when needed).
+     *
+     * @param array<string,mixed> $args
+     * @return array<string,mixed>
+     */
+    private static function with_lang_query(array $args, string $lang): array
+    {
+        if ($lang === '') {
+            return $args;
+        }
+
+        $args['lang'] = $lang;
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'icl_translations';
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+            return $args;
+        }
+
+        $post_type = $args['post_type'] ?? 'mcw_thread';
+        if (is_array($post_type)) {
+            $post_type = $post_type[0] ?? 'mcw_thread';
+        }
+        $element_type = 'post_' . $post_type;
+
+        if ($lang === 'bn') {
+            $ids = $wpdb->get_col($wpdb->prepare(
+                "SELECT element_id FROM {$table} WHERE element_type = %s AND language_code = %s",
+                $element_type,
+                'bn'
+            ));
+            $args['post__in'] = $ids ? array_map('intval', $ids) : [0];
+            return $args;
+        }
+
+        // English: explicit en rows + posts not yet registered in WPML
+        $bn_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT element_id FROM {$table} WHERE element_type = %s AND language_code = %s",
+            $element_type,
+            'bn'
+        ));
+        if ($bn_ids) {
+            $args['post__not_in'] = array_map('intval', $bn_ids);
+        }
+        return $args;
+    }
+
+    /** @return array<string,string> lang => post id */
+    private static function thread_translations(int $post_id): array
+    {
+        $map = ['en' => (string) $post_id];
+        global $wpdb;
+        $table = $wpdb->prefix . 'icl_translations';
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+            return $map;
+        }
+
+        $trid = $wpdb->get_var($wpdb->prepare(
+            "SELECT trid FROM {$table} WHERE element_type = 'post_mcw_thread' AND element_id = %d LIMIT 1",
+            $post_id
+        ));
+        if (!$trid) {
+            $translated = apply_filters('wpml_object_id', $post_id, 'mcw_thread', false, 'bn');
+            if ($translated && (int) $translated !== $post_id) {
+                $map['bn'] = (string) $translated;
+            }
+            return $map;
+        }
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT element_id, language_code FROM {$table} WHERE element_type = 'post_mcw_thread' AND trid = %d",
+            $trid
+        ), ARRAY_A) ?: [];
+        $out = [];
+        foreach ($rows as $row) {
+            $code = (string) ($row['language_code'] ?? '');
+            if ($code !== '') {
+                $out[$code] = (string) $row['element_id'];
+            }
+        }
+        if (!isset($out['en'])) {
+            $out['en'] = (string) $post_id;
+        }
+        return $out;
+    }
+
+    /** Resolve a thread id to the version in $lang (falls back to original). */
+    private static function resolve_thread_id(int $post_id, string $lang): int
+    {
+        if ($lang === '' || $lang === 'en') {
+            $map = self::thread_translations($post_id);
+            return isset($map['en']) ? (int) $map['en'] : $post_id;
+        }
+        $translated = apply_filters('wpml_object_id', $post_id, 'mcw_thread', true, $lang);
+        if ($translated) {
+            return (int) $translated;
+        }
+        $map = self::thread_translations($post_id);
+        return isset($map[$lang]) ? (int) $map[$lang] : $post_id;
+    }
+
+    /** All thread ids in a WPML translation group (for shared comments). */
+    private static function thread_group_ids(int $post_id): array
+    {
+        $map = self::thread_translations($post_id);
+        $ids = array_values(array_unique(array_map('strval', $map)));
+        if (!in_array((string) $post_id, $ids, true)) {
+            $ids[] = (string) $post_id;
+        }
+        return $ids;
+    }
+
+    private static function set_post_language(int $post_id, string $post_type, string $lang, ?int $trid = null, ?string $source = null): void
+    {
+        if ($lang === '' || !defined('ICL_SITEPRESS_VERSION')) {
+            return;
+        }
+        do_action('wpml_set_element_language_details', [
+            'element_id' => $post_id,
+            'element_type' => 'post_' . $post_type,
+            'trid' => $trid,
+            'language_code' => $lang,
+            'source_language_code' => $source,
+        ]);
     }
 
     public static function register_routes(): void
@@ -373,21 +539,58 @@ class MCW_Forum_REST
     {
         $tab = sanitize_text_field((string) $request->get_param('tab') ?: 'popular');
         $viewer = MCW_Forum_Auth::current_wp_user();
-        $q = new WP_Query([
+        $viewer_id = $viewer ? $viewer->ID : null;
+        $lang = self::request_lang($request) ?: 'en';
+
+        $base = [
             'post_type' => 'mcw_thread',
             'post_status' => 'publish',
+            'suppress_filters' => false,
+        ];
+
+        $feed_q = new WP_Query(self::with_lang_query(array_merge($base, [
             'posts_per_page' => 20,
             'orderby' => 'date',
             'order' => 'DESC',
-        ]);
-        $threads = MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null);
+        ]), $lang));
+        $threads = MCW_Forum_Forum::decorate_threads($feed_q->posts, $viewer_id);
+
+        $by_slug = static function (string $slug, int $limit) use ($base, $lang, $viewer_id): array {
+            $term = get_term_by('slug', $slug, 'mcw_forum');
+            $args = array_merge($base, [
+                'posts_per_page' => $limit,
+                'orderby' => 'date',
+                'order' => 'DESC',
+            ]);
+            if ($term && !is_wp_error($term)) {
+                $args['tax_query'] = [[
+                    'taxonomy' => 'mcw_forum',
+                    'field' => 'term_id',
+                    'terms' => [(int) $term->term_id],
+                ]];
+            }
+            $q = new WP_Query(self::with_lang_query($args, $lang));
+            return MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id);
+        };
+
+        $reviews = $by_slug('casino-reviews', 3);
+        $guides = $by_slug('guides', 3);
+        $wins = $by_slug('big-wins', 6);
+
         return new WP_REST_Response([
             'ok' => true,
             'tab' => $tab,
-            'threads' => $threads,
-            'featured' => array_slice($threads, 0, 3),
-            'reviews' => [],
-            'guides' => [],
+            'lang' => $lang,
+            'feed' => [
+                'page' => 1,
+                'limit' => 20,
+                'total' => (int) $feed_q->found_posts,
+                'threads' => $threads,
+            ],
+            'reviews' => $reviews,
+            'guides' => $guides,
+            'wins' => $wins,
+            'weekly' => [],
         ]);
     }
 
@@ -397,14 +600,16 @@ class MCW_Forum_REST
         $limit = min(50, max(1, (int) ($request->get_param('limit') ?: 20)));
         $page = max(1, (int) ($request->get_param('page') ?: 1));
         $forum = sanitize_text_field((string) ($request->get_param('forum') ?: $request->get_param('slug') ?: ''));
-        $args = [
+        $lang = self::request_lang($request) ?: 'en';
+        $args = self::with_lang_query([
             'post_type' => 'mcw_thread',
             'post_status' => 'publish',
             'posts_per_page' => $limit,
             'paged' => $page,
             'orderby' => 'date',
             'order' => 'DESC',
-        ];
+            'suppress_filters' => false,
+        ], $lang);
         $term_id = MCW_Forum_Forum::term_id_from_forum_param($forum);
         if ($term_id) {
             $args['tax_query'] = [[
@@ -426,13 +631,27 @@ class MCW_Forum_REST
 
     public static function get_thread(WP_REST_Request $request): WP_REST_Response
     {
-        $post = get_post((int) $request['id']);
+        $requested_id = (int) $request['id'];
+        $lang = self::request_lang($request) ?: 'en';
+        $resolved_id = self::resolve_thread_id($requested_id, $lang);
+        $post = get_post($resolved_id);
+        if (!$post || $post->post_type !== 'mcw_thread') {
+            // Fallback to requested id if translation missing
+            $post = get_post($requested_id);
+        }
         if (!$post || $post->post_type !== 'mcw_thread') {
             return new WP_REST_Response(['ok' => false, 'error' => 'Thread not found.'], 404);
         }
         $viewer = MCW_Forum_Auth::current_wp_user();
         $threads = MCW_Forum_Forum::decorate_threads([$post], $viewer ? $viewer->ID : null);
-        return new WP_REST_Response(['ok' => true, 'thread' => $threads[0]]);
+        $translations = self::thread_translations((int) $post->ID);
+        $threads[0]['translations'] = $translations;
+        return new WP_REST_Response([
+            'ok' => true,
+            'lang' => $lang,
+            'thread' => $threads[0],
+            'translations' => $translations,
+        ]);
     }
 
     public static function create_thread(WP_REST_Request $request): WP_REST_Response
@@ -474,8 +693,11 @@ class MCW_Forum_REST
         update_post_meta($id, 'mcw_body', $blocks);
         update_post_meta($id, 'mcw_tags', $body['tags'] ?? []);
         update_post_meta($id, 'mcw_views', 0);
+        $lang = self::request_lang($request) ?: 'en';
+        self::set_post_language((int) $id, 'mcw_thread', $lang, null, $lang === 'en' ? null : 'en');
         $post = get_post($id);
         $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID);
+        $threads[0]['translations'] = self::thread_translations((int) $id);
         return new WP_REST_Response(['ok' => true, 'thread' => $threads[0]]);
     }
 
@@ -523,9 +745,11 @@ class MCW_Forum_REST
     public static function list_comments(WP_REST_Request $request): WP_REST_Response
     {
         global $wpdb;
-        $thread_id = (string) $request['id'];
+        $thread_id = (int) $request['id'];
+        $group_ids = self::thread_group_ids($thread_id);
         $page = max(1, (int) ($request->get_param('page') ?: 1));
         $limit = min(50, max(1, (int) ($request->get_param('limit') ?: 20)));
+        // suppress_filters: WPML must not hide replies by language — comments are shared across translations
         $q = new WP_Query([
             'post_type' => 'mcw_reply',
             'post_status' => 'publish',
@@ -533,13 +757,18 @@ class MCW_Forum_REST
             'paged' => $page,
             'orderby' => 'date',
             'order' => 'ASC',
-            'meta_key' => 'mcw_thread_id',
-            'meta_value' => $thread_id,
+            'suppress_filters' => true,
+            'meta_query' => [[
+                'key' => 'mcw_thread_id',
+                'value' => $group_ids,
+                'compare' => 'IN',
+            ]],
         ]);
         $viewer = MCW_Forum_Auth::current_wp_user();
+        $lang = self::request_lang($request) ?: 'en';
         $comments = [];
         foreach ($q->posts as $post) {
-            $mapped = MCW_Forum_Serialize::map_comment($post);
+            $mapped = MCW_Forum_Serialize::map_comment($post, $lang);
             $author = get_user_by('id', (int) $post->post_author);
             $mapped['author'] = $author ? MCW_Forum_Serialize::public_user($author) : null;
             $mapped['likeCount'] = (int) $wpdb->get_var($wpdb->prepare(
@@ -561,6 +790,7 @@ class MCW_Forum_REST
             'page' => $page,
             'limit' => $limit,
             'total' => (int) $q->found_posts,
+            'lang' => $lang,
             'comments' => $comments,
         ]);
     }
@@ -576,6 +806,9 @@ class MCW_Forum_REST
         }
         $body = MCW_Forum_Forum::json_body($request);
         $thread_id = (string) ($body['threadId'] ?? '');
+        if ($thread_id === '' || !get_post((int) $thread_id)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Thread not found.'], 404);
+        }
         $blocks = $body['body'] ?? [];
         $content = '';
         if (is_array($blocks)) {
@@ -584,6 +817,9 @@ class MCW_Forum_REST
                     $content .= ($b['text'] ?? '') . "\n\n";
                 }
             }
+        }
+        if (trim($content) === '' && (!is_array($blocks) || count($blocks) === 0)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Write something or insert an image.'], 400);
         }
         $id = wp_insert_post([
             'post_type' => 'mcw_reply',
@@ -595,13 +831,22 @@ class MCW_Forum_REST
         if (is_wp_error($id)) {
             return new WP_REST_Response(['ok' => false, 'error' => $id->get_error_message()], 400);
         }
-        update_post_meta($id, 'mcw_thread_id', $thread_id);
-        update_post_meta($id, 'mcw_body', is_array($blocks) ? $blocks : []);
+        // Attach to canonical (EN) thread id so comments stay visible across language versions
+        $translations = self::thread_translations((int) $thread_id);
+        $canonical = $translations['en'] ?? $thread_id;
+        update_post_meta($id, 'mcw_thread_id', (string) $canonical);
+        $blocks = is_array($blocks) ? $blocks : [];
+        update_post_meta($id, 'mcw_body', $blocks);
         if (!empty($body['parentId'])) {
             update_post_meta($id, 'mcw_parent_id', (string) $body['parentId']);
         }
+        $lang = self::request_lang($request) ?: 'en';
+        // Translate once → store EN + BN for all future viewers
+        MCW_Forum_Translate::ensure_comment((int) $id, $blocks, $lang);
+        self::set_post_language((int) $id, 'mcw_reply', $lang, null, $lang === 'en' ? null : 'en');
+
         $post = get_post($id);
-        $mapped = MCW_Forum_Serialize::map_comment($post);
+        $mapped = MCW_Forum_Serialize::map_comment($post, $lang);
         $mapped['author'] = MCW_Forum_Serialize::public_user($user);
         $mapped['likeCount'] = 0;
         $mapped['liked'] = false;

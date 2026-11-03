@@ -10,30 +10,32 @@ import {
   Trophy,
 } from 'lucide-react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { useLocale } from '../../i18n/locale'
 import { AdRotator } from '../AdRotator'
-
-const feedItems = [
-  { to: '/', feed: '', label: 'Home', icon: Home },
-  { to: '/?feed=popular', feed: 'popular', label: 'Popular', icon: Flame },
-  { to: '/?feed=trending', feed: 'trending', label: 'Trending', icon: TrendingUp },
-  { to: '/?feed=latest', feed: 'latest', label: 'Latest', icon: Sparkles },
-  { to: '/?feed=saved', feed: 'saved', label: 'Saved', icon: Bookmark },
-]
-
-const communities = [
-  { to: '/communities/slot-games', label: 'Slot Games', icon: Spade },
-  { to: '/communities/casino-reviews', label: 'Casino Reviews', icon: Trophy },
-  { to: '/communities/game-providers', label: 'Game Providers', icon: Layers },
-  { to: '/communities/bonuses', label: 'Bonuses', icon: Sparkles },
-  { to: '/communities/rtp-volatility', label: 'RTP & Volatility', icon: TrendingUp },
-  { to: '/communities/responsible-gambling', label: 'Responsible Gambling', icon: Shield },
-]
 
 export function LeftRail() {
   const [params] = useSearchParams()
   const location = useLocation()
+  const { t } = useLocale()
   const feed = params.get('feed') || ''
   const onHome = location.pathname === '/'
+
+  const feedItems = [
+    { to: '/', feed: '', label: t('nav.home'), icon: Home },
+    { to: '/?feed=popular', feed: 'popular', label: t('rail.popular'), icon: Flame },
+    { to: '/?feed=trending', feed: 'trending', label: t('rail.trending'), icon: TrendingUp },
+    { to: '/?feed=latest', feed: 'latest', label: t('rail.latest'), icon: Sparkles },
+    { to: '/?feed=saved', feed: 'saved', label: t('rail.saved'), icon: Bookmark },
+  ]
+
+  const communities = [
+    { to: '/communities/slot-games', label: t('rail.slotGames'), icon: Spade },
+    { to: '/communities/casino-reviews', label: t('rail.casinoReviews'), icon: Trophy },
+    { to: '/communities/game-providers', label: t('rail.gameProviders'), icon: Layers },
+    { to: '/communities/bonuses', label: t('rail.bonuses'), icon: Sparkles },
+    { to: '/communities/rtp-volatility', label: t('rail.rtp'), icon: TrendingUp },
+    { to: '/communities/responsible-gambling', label: t('rail.responsible'), icon: Shield },
+  ]
 
   return (
     <aside className="space-y-3">
@@ -49,7 +51,7 @@ export function LeftRail() {
           )
         })}
         <div className="h-px bg-[var(--color-border)] my-2" />
-        <div className="section-title px-2 py-1.5">Communities</div>
+        <div className="section-title px-2 py-1.5">{t('rail.communities')}</div>
         {communities.map((item) => {
           const Icon = item.icon
           return (
@@ -64,7 +66,7 @@ export function LeftRail() {
           )
         })}
         <Link to="/communities" className="block text-center text-[11px] gold-text py-2 hover:underline">
-          View all
+          {t('rail.viewAll')}
         </Link>
       </nav>
       <AdRotator slot="left-1" heightClass="h-56" />

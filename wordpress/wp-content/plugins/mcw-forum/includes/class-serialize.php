@@ -62,20 +62,29 @@ class MCW_Forum_Serialize
         ];
     }
 
-    public static function map_comment(WP_Post $post): array
+    public static function map_comment(WP_Post $post, string $lang = 'en'): array
     {
-        $body = get_post_meta($post->ID, 'mcw_body', true);
-        if (!is_array($body)) {
-            $body = [['type' => 'text', 'text' => wp_strip_all_tags($post->post_content)]];
+        $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
+        $body = MCW_Forum_Translate::localized_body((int) $post->ID, $lang);
+        if (!$body) {
+            $raw = get_post_meta($post->ID, 'mcw_body', true);
+            $body = is_array($raw) ? $raw : [['type' => 'text', 'text' => wp_strip_all_tags($post->post_content)]];
+        }
+        $content = MCW_Forum_Translate::localized_content((int) $post->ID, $lang);
+        if ($content === '') {
+            $content = wp_strip_all_tags($post->post_content);
         }
         $parent = get_post_meta($post->ID, 'mcw_parent_id', true);
+        $source = (string) get_post_meta($post->ID, 'mcw_source_lang', true);
         return [
             'id' => (string) $post->ID,
             'threadId' => (string) get_post_meta($post->ID, 'mcw_thread_id', true),
             'authorId' => (string) $post->post_author,
             'parentId' => $parent !== '' && $parent !== null ? (string) $parent : null,
-            'content' => wp_strip_all_tags($post->post_content),
+            'content' => $content,
             'body' => $body,
+            'lang' => $lang,
+            'sourceLang' => $source !== '' ? $source : MCW_Forum_Translate::detect_lang($content),
             'createdAt' => gmdate('c', strtotime($post->post_date_gmt ?: $post->post_date)),
         ];
     }

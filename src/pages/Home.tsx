@@ -7,6 +7,7 @@ import { DocumentTitle } from '../components/DocumentTitle'
 import { ForumImage } from '../components/ForumMedia'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
+import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
 import { ART, CATEGORY_LOGOS, GUIDE_ART, REVIEW_ART, WIN_ART } from '../data/artwork'
 import { timeAgo } from '../lib/utils'
@@ -47,7 +48,8 @@ function FeedItem({ thread }: { thread: Thread }) {
   }
 
   const share = async () => {
-    const url = `${window.location.origin}/thread/${thread.id}`
+    const path = window.location.pathname.startsWith('/bn') ? `/bn/thread/${thread.id}` : `/thread/${thread.id}`
+    const url = `${window.location.origin}${path}`
     try {
       await navigator.clipboard.writeText(url)
       toast('Link copied')
@@ -108,6 +110,7 @@ function FeedItem({ thread }: { thread: Thread }) {
 
 export function Home() {
   const { state, currentUser, memberCount, cacheThreads, cacheUsers } = useForum()
+  const { t, lang } = useLocale()
   const [params] = useSearchParams()
   const tab = ((params.get('feed') as FeedTab) || 'latest')
   const [reviewQuery, setReviewQuery] = useState('')
@@ -132,14 +135,19 @@ export function Home() {
         setFeedReady(true)
         return
       }
-      setFeed(res.feed.threads)
-      setReviews(res.reviews)
-      setGuides(res.guides)
-      setBigWins(res.wins)
-      setWeekly(res.weekly)
-      cacheThreads([...res.feed.threads, ...res.reviews, ...res.guides, ...res.wins])
+      const feedThreads = res.feed?.threads ?? []
+      const nextReviews = res.reviews ?? []
+      const nextGuides = res.guides ?? []
+      const nextWins = res.wins ?? []
+      const nextWeekly = res.weekly ?? []
+      setFeed(feedThreads)
+      setReviews(nextReviews)
+      setGuides(nextGuides)
+      setBigWins(nextWins)
+      setWeekly(nextWeekly)
+      cacheThreads([...feedThreads, ...nextReviews, ...nextGuides, ...nextWins])
       cacheUsers(
-        [...res.feed.threads, ...res.reviews, ...res.guides, ...res.wins]
+        [...feedThreads, ...nextReviews, ...nextGuides, ...nextWins]
           .map((t) => t.author)
           .filter((u): u is User => Boolean(u)),
       )
@@ -174,18 +182,22 @@ export function Home() {
           <img src={ART.hero} alt="MCW casino crest" className="h-[88px] w-[88px] rounded-full object-cover shrink-0 border border-[#d7ae55]/40" />
           <div className="min-w-0">
             <h1 className="text-[18px] font-semibold gold-text leading-snug">
-              The grand forum for online casino players
+              {lang === 'bn'
+                ? 'অনলাইন ক্যাসিনো খেলোয়াড়দের গ্র্যান্ড ফোরাম'
+                : 'The grand forum for online casino players'}
             </h1>
             <p className="text-[12px] prose-muted mt-1">
-              Discuss, review and share strategies with a verified player community.
+              {lang === 'bn'
+                ? 'যাচাইকৃত প্লেয়ার কমিউনিটির সাথে আলোচনা, রিভিউ ও স্ট্র্যাটেজি শেয়ার করুন।'
+                : 'Discuss, review and share strategies with a verified player community.'}
             </p>
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               {!currentUser ? (
-                <Link to="/register" className="btn btn-primary">Register</Link>
+                <Link to="/register" className="btn btn-primary">{t('nav.register')}</Link>
               ) : (
-                <Link to="/create" className="btn btn-primary">Post thread</Link>
+                <Link to="/create" className="btn btn-primary">{t('nav.postThread')}</Link>
               )}
-              <Link to="/communities" className="btn btn-secondary">Forum list</Link>
+              <Link to="/communities" className="btn btn-secondary">{t('home.forumList')}</Link>
               <span className="text-[11px] prose-muted ml-1">Active members {members.toLocaleString()}</span>
             </div>
           </div>
@@ -226,7 +238,7 @@ export function Home() {
                 className="input h-7 w-32 pl-7 text-[12px]"
               />
             </div>
-            <Link to="/communities/casino-reviews" className="btn btn-secondary h-7 text-[11px]">Filter</Link>
+            <Link to="/communities/casino-reviews" className="btn btn-secondary h-7 text-[11px]">{t('home.filter')}</Link>
           </div>
         </div>
         <div className="grid md:grid-cols-3 gap-2">
@@ -321,7 +333,7 @@ export function Home() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <div className="section-title">Live community wins & screenshots</div>
-            <Link to="/communities/big-wins" className="text-[11px] gold-text">View all</Link>
+            <Link to="/communities/big-wins" className="text-[11px] gold-text">{t('home.viewAll')}</Link>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {bigWins.slice(0, 4).map((t) => (
@@ -344,7 +356,7 @@ export function Home() {
                 </div>
               </Link>
             ))}
-            <Link to="/communities/game-providers" className="btn btn-secondary w-full">View All Providers</Link>
+            <Link to="/communities/game-providers" className="btn btn-secondary w-full">{t('home.viewProviders')}</Link>
           </div>
         </div>
       </section>
