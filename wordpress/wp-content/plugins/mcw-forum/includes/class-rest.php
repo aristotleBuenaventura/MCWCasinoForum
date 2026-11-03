@@ -1043,6 +1043,7 @@ class MCW_Forum_REST
                 'user' => $pub,
                 'messages' => 0,
                 'reactions' => 0,
+                'media' => 0,
             ];
         }
         return new WP_REST_Response(['ok' => true, 'members' => $members]);

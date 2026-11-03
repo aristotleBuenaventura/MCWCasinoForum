@@ -50,12 +50,24 @@ export function Members() {
     const qs = new URLSearchParams({ key })
     if (query) qs.set('username', query)
     void api<{ members: MemberRow[] }>(`/api/members?${qs}`).then((res) => {
-      if (res.ok) setRows(res.members)
+      if (!res.ok) return
+      setRows(
+        (res.members || []).map((row) => ({
+          ...row,
+          messages: Number(row.messages ?? 0),
+          reactions: Number(row.reactions ?? 0),
+          media: Number(row.media ?? 0),
+        })),
+      )
     })
   }, [listKey, query])
 
+  const score = (row: MemberRow, key: BoardKey) => Number(row[key] ?? 0)
+
   const ranked = (key: BoardKey) =>
-    [...rows].sort((a, b) => b[key] - a[key] || a.user.username.localeCompare(b.user.username))
+    [...rows].sort(
+      (a, b) => score(b, key) - score(a, key) || a.user.username.localeCompare(b.user.username),
+    )
 
   const onFind = (e: FormEvent) => {
     e.preventDefault()
@@ -129,7 +141,7 @@ export function Members() {
                       <span className="xf-name-pill min-w-0" style={usernameBanner(row.user)}>
                         <Username user={row.user} />
                       </span>
-                      <span className="xf-notable-count">{row[item.key].toLocaleString()}</span>
+                      <span className="xf-notable-count">{score(row, item.key).toLocaleString()}</span>
                     </li>
                   ))}
                 </ol>
