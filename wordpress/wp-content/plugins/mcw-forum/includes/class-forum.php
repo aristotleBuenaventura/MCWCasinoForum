@@ -6,8 +6,9 @@ if (!defined('ABSPATH')) {
 
 class MCW_Forum_Forum
 {
-    public static function load_categories(): array
+    public static function load_categories(string $lang = 'en'): array
     {
+        $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $terms = get_terms([
             'taxonomy' => 'mcw_forum',
             'hide_empty' => false,
@@ -33,15 +34,16 @@ class MCW_Forum_Forum
             $out[] = MCW_Forum_Serialize::map_category($term, [
                 'threadCount' => $thread_count,
                 'postCount' => $thread_count,
-            ]);
+            ], $lang);
         }
         usort($out, static fn ($a, $b) => ($a['order'] <=> $b['order']) ?: strcmp($a['name'], $b['name']));
         return $out;
     }
 
-    public static function load_bootstrap(?WP_User $viewer): array
+    public static function load_bootstrap(?WP_User $viewer, string $lang = 'en'): array
     {
         global $wpdb;
+        $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $ads = get_posts(['post_type' => 'mcw_ad', 'numberposts' => 50, 'post_status' => 'publish']);
         $games = get_posts(['post_type' => 'mcw_game', 'numberposts' => 50, 'post_status' => 'publish']);
         $providers = get_posts(['post_type' => 'mcw_provider', 'numberposts' => 50, 'post_status' => 'publish']);
@@ -63,23 +65,25 @@ class MCW_Forum_Forum
                 : null,
             'unreadCount' => $unread,
             'memberCount' => $members,
-            'categories' => self::load_categories(),
+            'categories' => self::load_categories($lang),
             'ads' => array_map([MCW_Forum_Serialize::class, 'map_ad'], $ads),
             'trendingGames' => array_map([MCW_Forum_Serialize::class, 'map_cms'], $games),
             'providers' => array_map([MCW_Forum_Serialize::class, 'map_provider'], $providers),
             'adRotateSec' => (int) (get_option('mcw_ad_rotate_sec', 8)),
+            'lang' => $lang,
         ];
     }
 
-    public static function decorate_threads(array $posts, ?int $viewer_id): array
+    public static function decorate_threads(array $posts, ?int $viewer_id, string $lang = 'en'): array
     {
         global $wpdb;
+        $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $threads = [];
         foreach ($posts as $post) {
             if (!$post instanceof WP_Post) {
                 continue;
             }
-            $mapped = MCW_Forum_Serialize::map_thread($post);
+            $mapped = MCW_Forum_Serialize::map_thread($post, $lang);
             $author = get_user_by('id', (int) $post->post_author);
             $mapped['author'] = $author ? MCW_Forum_Serialize::public_user($author) : null;
             $like_count = (int) $wpdb->get_var($wpdb->prepare(

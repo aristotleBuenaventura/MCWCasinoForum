@@ -12,6 +12,8 @@ import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
 import { AdRotator } from '../components/AdRotator'
 import { useForum } from '../context/ForumContext'
+import { localizeCategoryName } from '../i18n/messages'
+import { useLocale } from '../i18n/locale'
 import { setActiveThreadTranslations } from '../i18n/threadTranslations'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
 import { compactNumber, forumTime } from '../lib/utils'
@@ -23,6 +25,7 @@ type ThreadComment = Comment & { author?: User | null; likeCount?: number; liked
 
 function MemberCard({ user }: { user?: User }) {
   const { state } = useForum()
+  const { lang } = useLocale()
   const threads = state.threads.filter((t) => t.authorId === user?.id).length
   const comments = state.comments.filter((c) => c.authorId === user?.id).length
   const likes =
@@ -43,7 +46,7 @@ function MemberCard({ user }: { user?: User }) {
         <RankBadges user={user} showStaffTag />
       </div>
       <dl className="mt-3 text-[11px] prose-muted space-y-1 text-left">
-        <div className="flex items-center gap-1.5"><Calendar size={11} /> {user ? forumTime(user.createdAt) : '—'}</div>
+        <div className="flex items-center gap-1.5"><Calendar size={11} /> {user ? forumTime(user.createdAt, lang) : '—'}</div>
         <div className="flex items-center gap-1.5"><MessageSquare size={11} /> {compactNumber(threads + comments)}</div>
         <div className="flex items-center gap-1.5"><Heart size={11} /> {compactNumber(likes)}</div>
       </dl>
@@ -57,6 +60,7 @@ export function ThreadDetail() {
   const page = Math.max(1, Number(params.get('page') || 1))
   const navigate = useNavigate()
   const toast = useToast()
+  const { t, lang } = useLocale()
   const {
     state,
     getUser,
@@ -111,8 +115,8 @@ export function ThreadDetail() {
       setLoading(false)
     })
     return () => setActiveThreadTranslations(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only refetch when route thread id changes
-  }, [id, cacheThreads, cacheUsers, navigate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch on thread id / language
+  }, [id, lang, cacheThreads, cacheUsers, navigate])
 
   useEffect(() => {
     if (!id) return
@@ -124,7 +128,7 @@ export function ThreadDetail() {
       setCommentTotal(res.total)
       cacheUsers(res.comments.map((c) => c.author).filter((u): u is User => Boolean(u)))
     })
-  }, [id, page, cacheUsers])
+  }, [id, page, lang, cacheUsers])
 
   useEffect(() => {
     if (!id) return
@@ -165,14 +169,14 @@ export function ThreadDetail() {
   const pageItems = posts
 
   if (loading) {
-    return <div className="forum-card p-6 text-center max-w-[1100px] mx-auto prose-muted">Loading discussion…</div>
+    return <div className="forum-card p-6 text-center max-w-[1100px] mx-auto prose-muted">{t('thread.loading')}</div>
   }
 
   if (!thread) {
     return (
       <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
-        <p>Thread not found.</p>
-        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">Back to communities</Link>
+        <p>{t('thread.notFound')}</p>
+        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">{t('community.back')}</Link>
       </div>
     )
   }
@@ -204,13 +208,13 @@ export function ThreadDetail() {
     } else {
       setComments((list) => (list.some((c) => c.id === posted.id) ? list : [...list, posted]))
     }
-    toast('Reply posted')
+    toast(t('common.replyPosted'))
   }
 
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
-      toast('Link copied')
+      toast(t('common.linkCopied'))
     } catch {
       toast(window.location.href)
     }
@@ -231,11 +235,13 @@ export function ThreadDetail() {
         })}
       </script>
       <div className="text-[12px] prose-muted">
-        <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
+        <Link to="/communities" className="gold-text hover:underline">{t('communities.forumList')}</Link>
         {forum && (
           <>
             {' / '}
-            <Link to={`/communities/${forum.slug}`} className="gold-text hover:underline">{forum.name}</Link>
+            <Link to={`/communities/${forum.slug}`} className="gold-text hover:underline">
+              {localizeCategoryName(forum.slug, forum.name, lang)}
+            </Link>
           </>
         )}
       </div>
@@ -246,15 +252,15 @@ export function ThreadDetail() {
           {thread.title}
         </h1>
         {currentUser ? (
-          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-primary">Post thread</Link>
+          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-primary">{t('community.postThread')}</Link>
         ) : (
-          <LoginLink className="btn btn-secondary">Log in to post</LoginLink>
+          <LoginLink className="btn btn-secondary">{t('thread.loginToPost')}</LoginLink>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-[12px] prose-muted">
         <Username user={author} />
-        <span>{forumTime(thread.createdAt)}</span>
+        <span>{forumTime(thread.createdAt, lang)}</span>
         {thread.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
         {currentUser && (
           <button
@@ -262,7 +268,7 @@ export function ThreadDetail() {
             className={`inline-flex items-center gap-1 ${saved ? 'text-[var(--color-gold)]' : ''}`}
             onClick={() => void toggleBookmark(thread.id).then(setSaved)}
           >
-            <Bookmark size={12} /> {saved ? 'Saved' : 'Save'}
+            <Bookmark size={12} /> {saved ? t('thread.saved') : t('thread.save')}
           </button>
         )}
       </div>
@@ -273,7 +279,7 @@ export function ThreadDetail() {
             <button key={n} type="button" className={n === page ? 'is-active' : ''} onClick={() => goPage(n)}>{n}</button>
           ))}
           {page < pageCount && (
-            <button type="button" onClick={() => goPage(page + 1)}>Next</button>
+            <button type="button" onClick={() => goPage(page + 1)}>{t('thread.next')}</button>
           )}
         </nav>
       )}
@@ -290,10 +296,10 @@ export function ThreadDetail() {
             <MemberCard user={user} />
             <div className="xf-body">
               <div className="flex items-center justify-between gap-2 text-[12px] prose-muted border-b border-[var(--xf-line-soft)] pb-2 mb-3">
-                <span>{forumTime(post.createdAt)}</span>
+                <span>{forumTime(post.createdAt, lang)}</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={share} className="hover:text-[var(--color-gold)] inline-flex items-center gap-1">
-                    <Share2 size={12} /> Share
+                    <Share2 size={12} /> {t('common.share')}
                   </button>
                   <span>#{number}</span>
                 </div>
@@ -312,7 +318,7 @@ export function ThreadDetail() {
                   type="button"
                   className={`inline-flex items-center gap-1 ${likedPost ? 'text-[var(--color-gold)]' : ''}`}
                   onClick={() => {
-                    if (!currentUser) return toast('Log in to like')
+                    if (!currentUser) return toast(t('thread.loginToLike'))
                     toggleLike(isOp ? 'thread' : 'comment', post.id)
                   }}
                 >
@@ -323,10 +329,10 @@ export function ThreadDetail() {
                     type="button"
                     onClick={() => {
                       setQuoteParent(post.id)
-                      toast('Replying to this comment')
+                      toast(t('thread.replying'))
                     }}
                   >
-                    Quote
+                    {t('thread.quote')}
                   </button>
                 )}
                 {currentUser && (
@@ -336,15 +342,15 @@ export function ThreadDetail() {
                       const reason = window.prompt('Why are you reporting this?')
                       if (!reason) return
                       report(isOp ? 'thread' : 'comment', post.id, reason)
-                      toast('Report submitted')
+                      toast(t('common.reported'))
                     }}
                   >
-                    <Flag size={13} className="inline mr-1" /> Report
+                    <Flag size={13} className="inline mr-1" /> {t('common.report')}
                   </button>
                 )}
                 {isOp && isMod && (
                   <button type="button" onClick={() => togglePin(thread.id)}>
-                    <Pin size={13} className="inline mr-1" /> {thread.pinned ? 'Unpin' : 'Pin'}
+                    <Pin size={13} className="inline mr-1" /> {thread.pinned ? t('thread.unpin') : t('thread.pin')}
                   </button>
                 )}
                 {isOp && canDelete && (
@@ -352,13 +358,13 @@ export function ThreadDetail() {
                     type="button"
                     className="text-[var(--color-danger)]"
                     onClick={() => {
-                      if (!window.confirm('Delete this thread?')) return
+                      if (!window.confirm(t('thread.confirmDelete'))) return
                       deleteThread(thread.id)
-                      toast('Thread deleted')
+                      toast(t('thread.deleted'))
                       navigate(forum ? `/communities/${forum.slug}` : '/communities')
                     }}
                   >
-                    <Trash2 size={13} className="inline mr-1" /> Delete
+                    <Trash2 size={13} className="inline mr-1" /> {t('thread.delete')}
                   </button>
                 )}
                 {!isOp && currentUser && (currentUser.id === post.authorId || isMod) && (
@@ -366,14 +372,14 @@ export function ThreadDetail() {
                     type="button"
                     className="text-[var(--color-danger)]"
                     onClick={() => {
-                      if (!window.confirm('Delete this reply?')) return
+                      if (!window.confirm(t('thread.confirmDeleteReply'))) return
                       deleteComment(post.id)
                       setComments((list) => list.filter((c) => c.id !== post.id))
                       setCommentTotal((n) => Math.max(0, n - 1))
-                      toast('Reply deleted')
+                      toast(t('thread.replyDeleted'))
                     }}
                   >
-                    <Trash2 size={13} className="inline mr-1" /> Delete
+                    <Trash2 size={13} className="inline mr-1" /> {t('thread.delete')}
                   </button>
                 )}
                 {isOp && isMod && author && author.role === 'user' && (
@@ -383,10 +389,10 @@ export function ThreadDetail() {
                     onClick={() => {
                       if (!window.confirm(`Remove user @${author.username}?`)) return
                       banUser(author.id, true)
-                      toast('User removed')
+                      toast(t('thread.userRemoved'))
                     }}
                   >
-                    Remove user
+                    {t('thread.removeUser')}
                   </button>
                 )}
               </div>
@@ -396,14 +402,14 @@ export function ThreadDetail() {
       })}
 
       <section className="xf-form">
-        <div className="xf-form-head">Reply to thread</div>
+        <div className="xf-form-head">{t('thread.replyTo')}</div>
         {currentUser ? (
           <form onSubmit={onComment}>
             {quoteParent && (
               <p className="text-[12px] px-3 pt-2 prose-muted">
-                Replying to a comment.{' '}
+                {t('thread.replyingToComment')}{' '}
                 <button type="button" className="gold-text" onClick={() => setQuoteParent(null)}>
-                  Cancel
+                  {t('thread.cancel')}
                 </button>
               </p>
             )}
@@ -411,17 +417,18 @@ export function ThreadDetail() {
               value={replyBody}
               onChange={setReplyBody}
               onBusyChange={setUploading}
-              placeholder={quoteParent ? 'Write your quoted reply...' : 'Write your reply. Use @username to mention someone.'}
+              placeholder={quoteParent ? t('thread.writeQuotedReply') : t('thread.writeReply')}
             />
             <div className="xf-form-actions">
               <button type="submit" className="btn-post" disabled={uploading}>
-                {uploading ? 'Uploading…' : 'Post reply'}
+                {uploading ? t('thread.uploading') : t('thread.postReply')}
               </button>
             </div>
           </form>
         ) : (
           <p className="text-[12px] prose-muted px-3 py-3">
-            <LoginLink className="gold-text hover:underline bg-transparent border-0 p-0 cursor-pointer">Log in</LoginLink> to reply.
+            <LoginLink className="gold-text hover:underline bg-transparent border-0 p-0 cursor-pointer">{t('nav.login')}</LoginLink>{' '}
+            {t('thread.loginToReply')}
           </p>
         )}
       </section>

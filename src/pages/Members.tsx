@@ -2,19 +2,15 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { Username } from '../components/Username'
-import { rankDisplayTitle } from '../lib/nameplate'
+import { rankDisplayKey } from '../lib/nameplate'
 import { DocumentTitle } from '../components/DocumentTitle'
+import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
 import { forumTime } from '../lib/utils'
 import type { User } from '../types'
+import type { MessageKey } from '../i18n/messages'
 
 type BoardKey = 'messages' | 'reactions' | 'media'
-
-const BOARDS: { key: BoardKey; title: string }[] = [
-  { key: 'messages', title: 'Most messages' },
-  { key: 'reactions', title: 'Highest reaction score' },
-  { key: 'media', title: 'Most media items' },
-]
 
 function usernameBanner(user: User) {
   if (user.role === 'admin') return { background: '#1d9e75', color: '#fff' }
@@ -33,18 +29,21 @@ function usernameBanner(user: User) {
   return palettes[Math.abs(hash) % palettes.length]
 }
 
-function memberTitle(user: User) {
-  return rankDisplayTitle(user)
-}
-
 type MemberRow = { user: User; messages: number; reactions: number; media: number; lastAt?: string }
 
 export function Members() {
+  const { t, lang } = useLocale()
   const [params, setParams] = useSearchParams()
   const [q, setQ] = useState(params.get('username') || '')
   const listKey = (params.get('key') as BoardKey | null) || null
   const query = (params.get('username') || '').trim().toLowerCase()
   const [rows, setRows] = useState<MemberRow[]>([])
+
+  const boards: { key: BoardKey; titleKey: MessageKey }[] = [
+    { key: 'messages', titleKey: 'members.mostMessages' },
+    { key: 'reactions', titleKey: 'members.highestReactions' },
+    { key: 'media', titleKey: 'members.mostMedia' },
+  ]
 
   useEffect(() => {
     const key = listKey || 'messages'
@@ -72,43 +71,43 @@ export function Members() {
       )
     : []
 
-  const board = BOARDS.find((b) => b.key === listKey)
+  const board = boards.find((b) => b.key === listKey)
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-3">
-      <DocumentTitle title="Leaderboards — MCW Forum" description="Top members by messages, reactions, and media." />
+      <DocumentTitle title={`${t('members.title')} — MCW Forum`} description="Top members by messages, reactions, and media." />
       <div className="text-[12px] prose-muted">
-        <Link to="/" className="gold-text hover:underline">Home</Link>
+        <Link to="/" className="gold-text hover:underline">{t('nav.home')}</Link>
         {' > '}
         {board ? (
           <>
-            <Link to="/members" className="gold-text hover:underline">Notable members</Link>
+            <Link to="/members" className="gold-text hover:underline">{t('members.notable')}</Link>
             {' > '}
-            {board.title}
+            {t(board.titleKey)}
           </>
         ) : (
-          'Notable members'
+          t('members.notable')
         )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="page-title">{board ? board.title : 'Notable members'}</h1>
+        <h1 className="page-title">{board ? t(board.titleKey) : t('members.notable')}</h1>
         <form onSubmit={onFind} className="flex items-center gap-1.5">
           <input
             className="input h-7 w-44 text-[13px]"
-            placeholder="Username"
+            placeholder={t('common.username')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            aria-label="Find member"
+            aria-label={t('members.findMember')}
           />
-          <button type="submit" className="btn btn-primary">Find</button>
+          <button type="submit" className="btn btn-primary">{t('common.find')}</button>
         </form>
       </div>
 
       {query && (
         <section className="forum-list">
-          <div className="forum-list-head">Member search results</div>
-          {matches.length === 0 && <div className="p-5 text-sm prose-muted">No members matched that name.</div>}
+          <div className="forum-list-head">{t('members.searchResults')}</div>
+          {matches.length === 0 && <div className="p-5 text-sm prose-muted">{t('members.noMatch')}</div>}
           {matches.map((row) => (
             <MemberResultRow key={row.user.id} row={row} />
           ))}
@@ -117,12 +116,12 @@ export function Members() {
 
       {!query && !board && (
         <div className="xf-notable">
-          {BOARDS.map((item) => {
+          {boards.map((item) => {
             const list = ranked(item.key).slice(0, 5)
             return (
               <section key={item.key} className="xf-notable-col">
-                <h2>{item.title}</h2>
-                {list.length === 0 && <div className="py-3 text-[12px] prose-muted">No members yet.</div>}
+                <h2>{t(item.titleKey)}</h2>
+                {list.length === 0 && <div className="py-3 text-[12px] prose-muted">{t('members.noMembers')}</div>}
                 <ol className="m-0 p-0 list-none">
                   {list.map((row) => (
                     <li key={row.user.id} className="xf-notable-row">
@@ -134,7 +133,7 @@ export function Members() {
                     </li>
                   ))}
                 </ol>
-                <Link to={`/members?key=${item.key}`} className="xf-see-more">See more...</Link>
+                <Link to={`/members?key=${item.key}`} className="xf-see-more">{t('common.seeMore')}</Link>
               </section>
             )
           })}
@@ -144,11 +143,11 @@ export function Members() {
       {!query && board && (
         <section className="forum-list">
           <div className="xf-member-list-head">
-            <span>Username</span>
-            <span className="hidden sm:block">Title</span>
-            <span className="text-right">Messages</span>
-            <span className="text-right hidden md:block">Reaction score</span>
-            <span className="text-right hidden lg:block">Joined</span>
+            <span>{t('common.username')}</span>
+            <span className="hidden sm:block">{t('common.title')}</span>
+            <span className="text-right">{t('common.messages')}</span>
+            <span className="text-right hidden md:block">{t('community.reactionScore')}</span>
+            <span className="text-right hidden lg:block">{t('members.joined')}</span>
           </div>
           {ranked(listKey || 'messages').map((row) => (
             <div key={row.user.id} className="xf-member-list-row">
@@ -156,10 +155,10 @@ export function Members() {
                 <Avatar user={row.user} size={26} />
                 <Username user={row.user} label="username" className="truncate" />
               </Link>
-              <span className="prose-muted hidden sm:block truncate">{memberTitle(row.user)}</span>
+              <span className="prose-muted hidden sm:block truncate">{t(rankDisplayKey(row.user))}</span>
               <span className="text-right tabular-nums">{row.messages.toLocaleString()}</span>
               <span className="text-right tabular-nums hidden md:block">{row.reactions.toLocaleString()}</span>
-              <span className="text-right prose-muted hidden lg:block">{forumTime(row.user.createdAt)}</span>
+              <span className="text-right prose-muted hidden lg:block">{forumTime(row.user.createdAt, lang)}</span>
             </div>
           ))}
         </section>
@@ -178,9 +177,7 @@ function MemberResultRow({
       <Avatar user={row.user} size={32} />
       <div className="min-w-0 flex-1">
         <Username user={row.user} label="username" link={false} />
-        <div className="text-[12px] prose-muted">
-          {memberTitle(row.user)} · {row.messages.toLocaleString()} messages · {row.reactions.toLocaleString()} reactions
-        </div>
+        <div className="text-[11px] prose-muted">{row.messages} · {row.reactions}</div>
       </div>
     </Link>
   )

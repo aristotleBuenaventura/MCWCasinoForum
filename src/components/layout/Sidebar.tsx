@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useForum } from '../../context/ForumContext'
+import { localizeCategoryName } from '../../i18n/messages'
+import { useLocale } from '../../i18n/locale'
 
 export function Sidebar() {
   const { state, getUser } = useForum()
+  const { t, lang } = useLocale()
 
   const replyCounts = new Map<string, number>()
   for (const c of state.comments) {
@@ -25,15 +28,15 @@ export function Sidebar() {
     <aside className="space-y-4">
       <section className="forum-card overflow-hidden">
         <div className="forum-list-head">
-          Our Top Forums
+          {t('sidebar.topForums')}
         </div>
         <ul className="divide-y divide-[var(--color-border)]">
           {state.categories.slice(0, 5).map((c) => (
             <li key={c.id}>
               <Link to={`/forums#${c.id}`} className="list-row block px-3 py-2.5">
-                <div className="font-medium text-sm text-[var(--color-gold)]">{c.name}</div>
+                <div className="font-medium text-sm text-[var(--color-gold)]">{localizeCategoryName(c.slug, c.name, lang)}</div>
                 <div className="text-xs prose-muted">
-                  {c.threadCount} threads · {c.postCount} posts
+                  {t('sidebar.nThreadsPosts', { threads: c.threadCount, posts: c.postCount })}
                 </div>
               </Link>
             </li>
@@ -43,7 +46,7 @@ export function Sidebar() {
 
       <section className="forum-card overflow-hidden">
         <div className="forum-list-head">
-          Top Contributors this Month
+          {t('sidebar.topContributors')}
         </div>
         <ul className="divide-y divide-[var(--color-border)]">
           {topContributors.map(({ user, replies }) => (
@@ -51,27 +54,27 @@ export function Sidebar() {
               <Link to={`/profile/${user!.username}`} className="text-[var(--color-gold)] font-medium hover:underline">
                 {user!.displayName}
               </Link>
-              <span className="prose-muted text-xs">{replies} Replies</span>
+              <span className="prose-muted text-xs">{t('sidebar.nReplies', { n: replies })}</span>
             </li>
           ))}
           {topContributors.length === 0 && (
-            <li className="px-3 py-3 text-sm prose-muted">No replies yet.</li>
+            <li className="px-3 py-3 text-sm prose-muted">{t('sidebar.noReplies')}</li>
           )}
         </ul>
       </section>
 
       <section className="forum-card overflow-hidden">
         <div className="forum-list-head">
-          Forum statistics
+          {t('sidebar.stats')}
         </div>
         <dl className="px-3 py-3 grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="prose-muted">Threads</dt>
+          <dt className="prose-muted">{t('common.threads')}</dt>
           <dd className="text-right font-semibold">{totalThreads.toLocaleString()}</dd>
-          <dt className="prose-muted">Messages</dt>
+          <dt className="prose-muted">{t('common.messages')}</dt>
           <dd className="text-right font-semibold">{totalMessages.toLocaleString()}</dd>
-          <dt className="prose-muted">Members</dt>
+          <dt className="prose-muted">{t('common.members')}</dt>
           <dd className="text-right font-semibold">{members.toLocaleString()}</dd>
-          <dt className="prose-muted">Latest member</dt>
+          <dt className="prose-muted">{t('sidebar.latestMember')}</dt>
           <dd className="text-right font-semibold">
             {latest ? (
               <Link to={`/profile/${latest.username}`} className="text-[var(--color-gold)] hover:underline">

@@ -32,24 +32,39 @@ class MCW_Forum_Serialize
         ];
     }
 
-    public static function map_thread(WP_Post $post): array
+    public static function map_thread(WP_Post $post, string $lang = 'en'): array
     {
+        $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $terms = wp_get_post_terms($post->ID, 'mcw_forum');
         $forum_id = '';
         if (!is_wp_error($terms) && !empty($terms)) {
             $forum_id = 'cat_' . $terms[0]->term_id;
         }
-        $body = get_post_meta($post->ID, 'mcw_body', true);
-        if (!is_array($body)) {
-            $body = [['type' => 'text', 'text' => wp_strip_all_tags($post->post_content)]];
+
+        if ($lang !== 'en') {
+            MCW_Forum_Translate::ensure_thread((int) $post->ID);
         }
+        $title = MCW_Forum_Translate::localized_title((int) $post->ID, $lang);
+        $body = MCW_Forum_Translate::localized_body((int) $post->ID, $lang);
+        if (!$body) {
+            $raw = get_post_meta((int) $post->ID, 'mcw_body', true);
+            $body = is_array($raw) ? $raw : [['type' => 'text', 'text' => wp_strip_all_tags($post->post_content)]];
+        }
+        $content = MCW_Forum_Translate::localized_content((int) $post->ID, $lang);
+        if ($content === '' || MCW_Forum_Translate::is_stub_body([['type' => 'text', 'text' => $content]])) {
+            $content = MCW_Forum_Translate::plain_from_body($body);
+        }
+        if ($content === '') {
+            $content = wp_strip_all_tags($post->post_content);
+        }
+
         $tags = get_post_meta($post->ID, 'mcw_tags', true);
         return [
             'id' => (string) $post->ID,
             'forumId' => $forum_id,
             'authorId' => (string) $post->post_author,
-            'title' => get_the_title($post),
-            'content' => wp_strip_all_tags($post->post_content),
+            'title' => $title !== '' ? $title : get_the_title($post),
+            'content' => $content,
             'body' => $body,
             'mediaUrl' => get_post_meta($post->ID, 'mcw_media_url', true) ?: null,
             'mediaType' => get_post_meta($post->ID, 'mcw_media_type', true) ?: null,
@@ -59,6 +74,7 @@ class MCW_Forum_Serialize
             'createdAt' => gmdate('c', strtotime($post->post_date_gmt ?: $post->post_date)),
             'updatedAt' => gmdate('c', strtotime($post->post_modified_gmt ?: $post->post_modified)),
             'views' => (int) get_post_meta($post->ID, 'mcw_views', true),
+            'lang' => $lang,
         ];
     }
 
@@ -89,14 +105,23 @@ class MCW_Forum_Serialize
         ];
     }
 
-    public static function map_category(WP_Term $term, array $counts): array
+    public static function map_category(WP_Term $term, array $counts, string $lang = 'en'): array
     {
+        $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $parent = $term->parent ? 'cat_' . $term->parent : null;
+        $name = html_entity_decode($term->name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $description = html_entity_decode($term->description ?: '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($lang !== 'en') {
+            $name = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'name', $name, $lang);
+            if ($description !== '') {
+                $description = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'description', $description, $lang);
+            }
+        }
         return [
             'id' => 'cat_' . $term->term_id,
             'slug' => $term->slug,
-            'name' => html_entity_decode($term->name, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-            'description' => html_entity_decode($term->description ?: '', ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            'name' => $name,
+            'description' => $description,
             'parentId' => $parent,
             'featured' => (bool) get_term_meta($term->term_id, 'mcw_featured', true),
             'order' => (int) get_term_meta($term->term_id, 'mcw_order', true),

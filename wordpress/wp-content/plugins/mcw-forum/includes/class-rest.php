@@ -529,10 +529,11 @@ class MCW_Forum_REST
         return $user;
     }
 
-    public static function bootstrap(): WP_REST_Response
+    public static function bootstrap(WP_REST_Request $request): WP_REST_Response
     {
         $user = MCW_Forum_Auth::current_wp_user();
-        return new WP_REST_Response(array_merge(['ok' => true], MCW_Forum_Forum::load_bootstrap($user)));
+        $lang = self::request_lang($request) ?: 'en';
+        return new WP_REST_Response(array_merge(['ok' => true], MCW_Forum_Forum::load_bootstrap($user, $lang)));
     }
 
     public static function home(WP_REST_Request $request): WP_REST_Response
@@ -553,7 +554,7 @@ class MCW_Forum_REST
             'orderby' => 'date',
             'order' => 'DESC',
         ]), $lang));
-        $threads = MCW_Forum_Forum::decorate_threads($feed_q->posts, $viewer_id);
+        $threads = MCW_Forum_Forum::decorate_threads($feed_q->posts, $viewer_id, $lang);
 
         $by_slug = static function (string $slug, int $limit) use ($base, $lang, $viewer_id): array {
             $term = get_term_by('slug', $slug, 'mcw_forum');
@@ -570,7 +571,7 @@ class MCW_Forum_REST
                 ]];
             }
             $q = new WP_Query(self::with_lang_query($args, $lang));
-            return MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id);
+            return MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id, $lang);
         };
 
         $reviews = $by_slug('casino-reviews', 3);
@@ -625,7 +626,7 @@ class MCW_Forum_REST
             'page' => $page,
             'limit' => $limit,
             'total' => (int) $q->found_posts,
-            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null),
+            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null, $lang),
         ]);
     }
 
@@ -643,7 +644,7 @@ class MCW_Forum_REST
             return new WP_REST_Response(['ok' => false, 'error' => 'Thread not found.'], 404);
         }
         $viewer = MCW_Forum_Auth::current_wp_user();
-        $threads = MCW_Forum_Forum::decorate_threads([$post], $viewer ? $viewer->ID : null);
+        $threads = MCW_Forum_Forum::decorate_threads([$post], $viewer ? $viewer->ID : null, $lang);
         $translations = self::thread_translations((int) $post->ID);
         $threads[0]['translations'] = $translations;
         return new WP_REST_Response([
@@ -695,8 +696,9 @@ class MCW_Forum_REST
         update_post_meta($id, 'mcw_views', 0);
         $lang = self::request_lang($request) ?: 'en';
         self::set_post_language((int) $id, 'mcw_thread', $lang, null, $lang === 'en' ? null : 'en');
+        MCW_Forum_Translate::ensure_thread((int) $id);
         $post = get_post($id);
-        $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID);
+        $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID, $lang);
         $threads[0]['translations'] = self::thread_translations((int) $id);
         return new WP_REST_Response(['ok' => true, 'thread' => $threads[0]]);
     }
@@ -1012,16 +1014,18 @@ class MCW_Forum_REST
     public static function search(WP_REST_Request $request): WP_REST_Response
     {
         $q = sanitize_text_field((string) $request->get_param('q'));
-        $query = new WP_Query([
+        $lang = self::request_lang($request) ?: 'en';
+        $query = new WP_Query(self::with_lang_query([
             'post_type' => 'mcw_thread',
             'post_status' => 'publish',
             's' => $q,
             'posts_per_page' => 30,
-        ]);
+            'suppress_filters' => false,
+        ], $lang));
         $viewer = MCW_Forum_Auth::current_wp_user();
         return new WP_REST_Response([
             'ok' => true,
-            'threads' => MCW_Forum_Forum::decorate_threads($query->posts, $viewer ? $viewer->ID : null),
+            'threads' => MCW_Forum_Forum::decorate_threads($query->posts, $viewer ? $viewer->ID : null, $lang),
             'users' => [],
         ]);
     }
@@ -1050,17 +1054,19 @@ class MCW_Forum_REST
         if (!$user) {
             return new WP_REST_Response(['ok' => false, 'error' => 'User not found.'], 404);
         }
-        $q = new WP_Query([
+        $lang = self::request_lang($request) ?: 'en';
+        $q = new WP_Query(self::with_lang_query([
             'post_type' => 'mcw_thread',
             'author' => $user->ID,
             'posts_per_page' => 20,
             'post_status' => 'publish',
-        ]);
+            'suppress_filters' => false,
+        ], $lang));
         $viewer = MCW_Forum_Auth::current_wp_user();
         return new WP_REST_Response([
             'ok' => true,
             'user' => MCW_Forum_Serialize::public_user($user, $viewer && $viewer->ID === $user->ID),
-            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null),
+            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null, $lang),
             'comments' => [],
         ]);
     }

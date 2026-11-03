@@ -10,6 +10,7 @@ import {
   DEFAULT_LANG,
   LANG_LABELS,
   LANGS,
+  fillMessage,
   messages,
   type Lang,
   type MessageKey,
@@ -18,7 +19,7 @@ import { getActiveThreadTranslations } from './threadTranslations'
 
 type LocaleContextValue = {
   lang: Lang
-  t: (key: MessageKey) => string
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string
   localizePath: (path: string) => string
   switchLangPath: (next: Lang) => string
 }
@@ -51,7 +52,8 @@ export function LocaleProvider({ lang, children }: { lang: Lang; children: React
   const location = useLocation()
 
   const t = useCallback(
-    (key: MessageKey) => messages[lang][key] ?? messages.en[key] ?? key,
+    (key: MessageKey, vars?: Record<string, string | number>) =>
+      fillMessage(messages[lang][key] ?? messages.en[key] ?? key, vars),
     [lang],
   )
 

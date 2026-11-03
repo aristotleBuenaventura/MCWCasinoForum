@@ -66,6 +66,23 @@ export function rankDisplayTitle(user: { role: string; membership?: string }) {
   return MEMBERSHIP_BADGE[parseMembership(user.membership)].text
 }
 
+/** Message keys for localized rank titles (see i18n/messages). */
+export function rankDisplayKey(user: { role: string; membership?: string }):
+  | 'rank.owner'
+  | 'rank.moderator'
+  | 'rank.registered'
+  | 'rank.vip'
+  | 'rank.premium'
+  | 'rank.elite' {
+  if (user.role === 'admin') return 'rank.owner'
+  if (user.role === 'moderator') return 'rank.moderator'
+  const m = parseMembership(user.membership)
+  if (m === 'vip') return 'rank.vip'
+  if (m === 'premium') return 'rank.premium'
+  if (m === 'elite') return 'rank.elite'
+  return 'rank.registered'
+}
+
 type FrameDef = {
   label: string
   minMembership: Membership

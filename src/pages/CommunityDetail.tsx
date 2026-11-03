@@ -6,6 +6,8 @@ import { Username } from '../components/Username'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
+import { localizeCategoryDesc, localizeCategoryName } from '../i18n/messages'
+import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
@@ -18,6 +20,7 @@ export function CommunityDetail() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const sort = ((params.get('sort') as SortKey) || 'latest')
   const { getCategoryBySlug, childCategories, state, currentUser, cacheThreads } = useForum()
+  const { t, lang } = useLocale()
   const category = getCategoryBySlug(slug || '')
   const children = category ? childCategories(category.id) : []
   const [threads, setThreads] = useState<Thread[]>([])
@@ -31,13 +34,13 @@ export function CommunityDetail() {
       setThreads(list)
       cacheThreads(list)
     })
-  }, [slug, sort, cacheThreads])
+  }, [slug, sort, lang, cacheThreads])
 
   if (!category) {
     return (
       <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
-        <p>Community not found.</p>
-        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">Back to communities</Link>
+        <p>{t('community.notFound')}</p>
+        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">{t('community.back')}</Link>
       </div>
     )
   }
@@ -45,41 +48,51 @@ export function CommunityDetail() {
   const parent = category.parentId ? state.categories.find((c) => c.id === category.parentId) : null
   const sticky = threads.filter((t) => t.pinned)
   const regular = threads.filter((t) => !t.pinned)
+  const catName = localizeCategoryName(category.slug, category.name, lang)
+  const catDesc = localizeCategoryDesc(category.slug, category.description, lang)
 
   const setSort = (value: SortKey) => {
     setParams(value === 'latest' ? {} : { sort: value })
     setFiltersOpen(false)
   }
 
+  const sortLabel: Record<SortKey, string> = {
+    latest: t('common.latest'),
+    popular: t('common.popular'),
+    pinned: t('common.pinned'),
+  }
+
   return (
     <div className="max-w-[1100px] mx-auto space-y-2">
-      <DocumentTitle title={`${category.name} — MCW Forum`} description={category.description} />
+      <DocumentTitle title={`${catName} — MCW Forum`} description={catDesc} />
       <div className="text-[12px] prose-muted">
-        <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
+        <Link to="/communities" className="gold-text hover:underline">{t('communities.forumList')}</Link>
         {parent && (
           <>
             {' / '}
-            <Link to={`/communities/${parent.slug}`} className="gold-text hover:underline">{parent.name}</Link>
+            <Link to={`/communities/${parent.slug}`} className="gold-text hover:underline">
+              {localizeCategoryName(parent.slug, parent.name, lang)}
+            </Link>
           </>
         )}
         {' / '}
-        {category.name}
+        {catName}
       </div>
 
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="page-title gold-text">{category.name}</h1>
-          <p className="text-[12px] prose-muted">{category.description}</p>
+          <h1 className="page-title gold-text">{catName}</h1>
+          <p className="text-[12px] prose-muted">{catDesc}</p>
         </div>
         <div className="flex items-center gap-2">
           {currentUser ? (
-            <Link to={`/create?forum=${category.id}`} className="btn btn-primary">Post thread</Link>
+            <Link to={`/create?forum=${category.id}`} className="btn btn-primary">{t('community.postThread')}</Link>
           ) : (
-            <LoginLink className="btn btn-secondary">Log in to post</LoginLink>
+            <LoginLink className="btn btn-secondary">{t('thread.loginToPost')}</LoginLink>
           )}
           <div className="relative">
             <button type="button" className="btn btn-secondary" onClick={() => setFiltersOpen((v) => !v)}>
-              Filters <ChevronDown size={12} />
+              {t('common.filters')} <ChevronDown size={12} />
             </button>
             {filtersOpen && (
               <div className="absolute right-0 mt-1 z-20 forum-card p-1 min-w-36">
@@ -90,7 +103,7 @@ export function CommunityDetail() {
                     className={`block w-full text-left px-3 py-1.5 text-[12px] rounded ${sort === key ? 'gold-text' : 'prose-muted'}`}
                     onClick={() => setSort(key)}
                   >
-                    {key[0].toUpperCase() + key.slice(1)}
+                    {sortLabel[key]}
                   </button>
                 ))}
               </div>
@@ -101,27 +114,29 @@ export function CommunityDetail() {
 
       {children.length > 0 && (
         <div className="text-[12px] prose-muted">
-          Sub-forums:{' '}
+          {t('communities.subForums')}:{' '}
           {children.map((c, i) => (
             <span key={c.id}>
               {i > 0 && ' · '}
-              <Link to={`/communities/${c.slug}`} className="gold-text hover:underline">{c.name}</Link>
+              <Link to={`/communities/${c.slug}`} className="gold-text hover:underline">
+                {localizeCategoryName(c.slug, c.name, lang)}
+              </Link>
             </span>
           ))}
         </div>
       )}
 
       <section className="forum-list">
-        {sticky.map((t) => (
-          <ThreadRow key={t.id} thread={t} pleaseRead />
+        {sticky.map((item) => (
+          <ThreadRow key={item.id} thread={item} pleaseRead />
         ))}
 
-        {regular.map((t) => (
-          <ThreadRow key={t.id} thread={t} />
+        {regular.map((item) => (
+          <ThreadRow key={item.id} thread={item} />
         ))}
 
         {threads.length === 0 && (
-          <div className="p-6 text-center text-sm prose-muted">No threads in this community yet.</div>
+          <div className="p-6 text-center text-sm prose-muted">{t('community.noThreadsYet')}</div>
         )}
       </section>
     </div>
@@ -130,6 +145,7 @@ export function CommunityDetail() {
 
 function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?: boolean }) {
   const { state } = useForum()
+  const { t, lang } = useLocale()
   const author = thread.author
   const lastUser = author
   const lastAt = thread.updatedAt
@@ -147,7 +163,7 @@ function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?
         <div className="flex flex-wrap items-center gap-1">
           <Link to={`/thread/${thread.id}`} className="text-[13px] font-semibold gold-text hover:underline line-clamp-2">
             {pleaseRead && <Pin size={12} className="inline mr-1 -mt-0.5" />}
-            {pleaseRead && <span>Please Read: </span>}
+            {pleaseRead && <span>{t('thread.pleaseRead')}</span>}
             {thread.title}
           </Link>
           {pageNumbers.map((n) => (
@@ -157,11 +173,13 @@ function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?
           ))}
         </div>
         <div className="text-[11px] prose-muted mt-0.5">
-          <Username user={author} /> · {forumTime(thread.createdAt)}
+          <Username user={author} /> · {forumTime(thread.createdAt, lang)}
           {forum && (
             <>
               {' · '}
-              <Link to={`/communities/${forum.slug}`} className="hover:text-[var(--color-gold)]">{forum.name}</Link>
+              <Link to={`/communities/${forum.slug}`} className="hover:text-[var(--color-gold)]">
+                {localizeCategoryName(forum.slug, forum.name, lang)}
+              </Link>
             </>
           )}
         </div>
@@ -172,12 +190,12 @@ function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?
         </div>
       </div>
       <div className="stat-col text-[12px] leading-tight">
-        <div>Replies: <span className="text-[var(--color-ink)]">{compactNumber(thread.replyCount || 0)}</span></div>
-        <div className="prose-muted">Views: {compactNumber(thread.views)}</div>
+        <div>{t('community.repliesLabel')} <span className="text-[var(--color-ink)]">{compactNumber(thread.replyCount || 0)}</span></div>
+        <div className="prose-muted">{t('community.viewsLabel')} {compactNumber(thread.views)}</div>
       </div>
       <div className="last-col min-w-0 flex items-center justify-end gap-2 text-right">
         <div className="min-w-0">
-          <div className="text-[11px] prose-muted truncate">{forumTime(lastAt)}</div>
+          <div className="text-[11px] prose-muted truncate">{forumTime(lastAt, lang)}</div>
           <div className="text-[11px] truncate">{lastUser?.username}</div>
         </div>
         <Avatar user={lastUser} size={26} />

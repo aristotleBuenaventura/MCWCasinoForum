@@ -1,12 +1,17 @@
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns'
+import { bn } from 'date-fns/locale'
+import { fillMessage, messages, type Lang } from '../i18n/messages'
 
 export function uid(prefix = 'id') {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`
 }
 
-export function timeAgo(date: string) {
+export function timeAgo(date: string, lang: Lang = 'en') {
   try {
-    return formatDistanceToNow(new Date(date), { addSuffix: true })
+    return formatDistanceToNow(new Date(date), {
+      addSuffix: true,
+      locale: lang === 'bn' ? bn : undefined,
+    })
   } catch {
     return date
   }
@@ -39,13 +44,17 @@ export function compactNumber(n: number) {
   return String(n)
 }
 
-export function forumTime(date: string) {
+export function forumTime(date: string, lang: Lang = 'en') {
   const d = new Date(date)
   if (Number.isNaN(+d)) return date
-  if (Date.now() - +d < 60 * 60 * 1000) return formatDistanceToNow(d, { addSuffix: true })
-  if (isToday(d)) return `Today at ${format(d, 'h:mm a')}`
-  if (isYesterday(d)) return `Yesterday at ${format(d, 'h:mm a')}`
-  return format(d, 'MMM d, yyyy')
+  const locale = lang === 'bn' ? bn : undefined
+  if (Date.now() - +d < 60 * 60 * 1000) {
+    return formatDistanceToNow(d, { addSuffix: true, locale })
+  }
+  const time = format(d, 'h:mm a', { locale })
+  if (isToday(d)) return fillMessage(messages[lang]['time.todayAt'], { time })
+  if (isYesterday(d)) return fillMessage(messages[lang]['time.yesterdayAt'], { time })
+  return format(d, 'MMM d, yyyy', { locale })
 }
 
 export function avatarColor(seed: string) {

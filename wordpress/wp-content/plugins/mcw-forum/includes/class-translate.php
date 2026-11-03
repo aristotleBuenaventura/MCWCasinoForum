@@ -62,15 +62,36 @@ class MCW_Forum_Translate
     {
         $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
         $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
-        if (is_array($body) && $body) {
+        if (is_array($body) && $body && !self::is_stub_body($body) && self::looks_like_lang(self::plain_from_body($body), $lang)) {
             return $body;
+        }
+        // For threads, pull from English sibling then translate.
+        $source_id = self::english_sibling_id($post_id);
+        if ($source_id !== $post_id) {
+            $from_en = get_post_meta($source_id, 'mcw_body_' . $lang, true);
+            if (is_array($from_en) && $from_en && !self::is_stub_body($from_en) && self::looks_like_lang(self::plain_from_body($from_en), $lang)) {
+                update_post_meta($post_id, 'mcw_body_' . $lang, $from_en);
+                return $from_en;
+            }
+            self::ensure_thread($post_id);
+            $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
+            if (is_array($body) && $body && !self::is_stub_body($body)) {
+                return $body;
+            }
+            $from_en = get_post_meta($source_id, 'mcw_body_' . $lang, true);
+            if (is_array($from_en) && $from_en) {
+                return $from_en;
+            }
         }
         self::ensure_missing($post_id);
         $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
-        if (is_array($body) && $body) {
+        if (is_array($body) && $body && !self::is_stub_body($body)) {
             return $body;
         }
-        $fallback = get_post_meta($post_id, 'mcw_body', true);
+        $fallback = get_post_meta($source_id, 'mcw_body', true);
+        if (!is_array($fallback) || !$fallback) {
+            $fallback = get_post_meta($post_id, 'mcw_body', true);
+        }
         return is_array($fallback) ? $fallback : [];
     }
 
@@ -82,6 +103,113 @@ class MCW_Forum_Translate
             return $content;
         }
         return self::plain_from_body(self::localized_body($post_id, $lang));
+    }
+
+    /**
+     * Lazy-translate thread titles; cached in mcw_title_{lang}.
+     * Always prefers the English WPML sibling as the source text so stub
+     * BN posts titled "… (বাংলা)" still get a real Bengali title.
+     */
+    public static function localized_title(int $post_id, string $lang): string
+    {
+        $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
+        $source_id = self::english_sibling_id($post_id);
+        $source_post = get_post($source_id) ?: get_post($post_id);
+        $english = self::clean_title(
+            $source_post
+                ? html_entity_decode(get_the_title($source_post), ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                : ''
+        );
+        if ($english === '') {
+            return '';
+        }
+
+        if ($lang === 'en') {
+            return $english;
+        }
+
+        $cached = get_post_meta($post_id, 'mcw_title_' . $lang, true);
+        if (!is_string($cached) || $cached === '' || !self::looks_like_lang($cached, $lang)) {
+            // Also check cache on the English sibling (shared across WPML pair)
+            $cached_en = get_post_meta($source_id, 'mcw_title_' . $lang, true);
+            if (is_string($cached_en) && $cached_en !== '' && self::looks_like_lang($cached_en, $lang)) {
+                $cached = $cached_en;
+            } else {
+                $cached = '';
+            }
+        }
+        if (is_string($cached) && $cached !== '' && self::looks_like_lang($cached, $lang)) {
+            return $cached;
+        }
+
+        $translated = self::translate_text($english, 'en', $lang);
+        // If translator failed and returned English, do not poison the cache.
+        if ($translated === '' || !self::looks_like_lang($translated, $lang)) {
+            return $translated !== '' ? $translated : $english;
+        }
+        update_post_meta($post_id, 'mcw_title_' . $lang, $translated);
+        update_post_meta($source_id, 'mcw_title_' . $lang, $translated);
+        update_post_meta($source_id, 'mcw_title_en', $english);
+        return $translated;
+    }
+
+    /** Ensure thread body+title have both language variants (once). */
+    public static function ensure_thread(int $post_id): void
+    {
+        $post = get_post($post_id);
+        if (!$post) {
+            return;
+        }
+        // Force title localization for both langs (writes cache).
+        self::localized_title($post_id, 'bn');
+        self::localized_title($post_id, 'en');
+
+        $source_id = self::english_sibling_id($post_id);
+        $source_post = get_post($source_id) ?: $post;
+        $body = get_post_meta($source_id, 'mcw_body', true);
+        if (!is_array($body) || !$body) {
+            $text = wp_strip_all_tags($source_post->post_content);
+            $body = [['type' => 'text', 'text' => $text]];
+        }
+        // Skip WPML stub bodies ("এটি বাংলা ডেমো অনুবাদ…") — use EN sibling.
+        if (self::is_stub_body($body)) {
+            $en_body = get_post_meta($source_id, 'mcw_body', true);
+            if (is_array($en_body) && $en_body && !self::is_stub_body($en_body)) {
+                $body = $en_body;
+            } else {
+                $body = [['type' => 'text', 'text' => wp_strip_all_tags($source_post->post_content)]];
+            }
+        }
+        self::ensure_comment($source_id, $body, 'en');
+        // Mirror BN body onto the requested post so map_thread finds it.
+        $bn = get_post_meta($source_id, 'mcw_body_bn', true);
+        if (is_array($bn) && $bn) {
+            update_post_meta($post_id, 'mcw_body_bn', $bn);
+            update_post_meta($post_id, 'mcw_content_bn', self::plain_from_body($bn));
+        }
+    }
+
+    public static function localized_term_field(int $term_id, string $field, string $native, string $lang): string
+    {
+        $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
+        $native = html_entity_decode($native, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($native === '') {
+            return '';
+        }
+        $meta_key = 'mcw_' . $field . '_' . $lang;
+        $cached = get_term_meta($term_id, $meta_key, true);
+        if (is_string($cached) && $cached !== '') {
+            return $cached;
+        }
+        $source = self::detect_lang($native);
+        if ($source === $lang) {
+            update_term_meta($term_id, $meta_key, $native);
+            return $native;
+        }
+        $translated = self::translate_text($native, $source, $lang);
+        update_term_meta($term_id, $meta_key, $translated);
+        update_term_meta($term_id, 'mcw_' . $field . '_' . $source, $native);
+        return $translated;
     }
 
     public static function translate_body(array $blocks, string $from, string $to): array
@@ -199,12 +327,71 @@ class MCW_Forum_Translate
         return trim(implode("\n\n", $parts));
     }
 
-    /** Very light heuristic for legacy comments without source_lang. */
+    /**
+     * Majority-script heuristic. A single "(বাংলা)" suffix must not flip EN → BN.
+     */
     public static function detect_lang(string $text): string
     {
-        if (preg_match('/[\x{0980}-\x{09FF}]/u', $text)) {
+        $text = self::clean_title($text);
+        if ($text === '') {
+            return 'en';
+        }
+        preg_match_all('/[\x{0980}-\x{09FF}]/u', $text, $bn);
+        preg_match_all('/[A-Za-z]/', $text, $latin);
+        $bn_n = count($bn[0] ?? []);
+        $latin_n = count($latin[0] ?? []);
+        if ($bn_n === 0) {
+            return 'en';
+        }
+        if ($latin_n === 0) {
             return 'bn';
         }
-        return 'en';
+        // Need Bengali to be a real share of letters, not a tiny marker.
+        return ($bn_n / max(1, $bn_n + $latin_n)) >= 0.35 ? 'bn' : 'en';
+    }
+
+    public static function looks_like_lang(string $text, string $lang): bool
+    {
+        return self::detect_lang($text) === $lang;
+    }
+
+    /** Strip WPML stub markers like "(বাংলা)" from titles. */
+    public static function clean_title(string $title): string
+    {
+        $title = html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $title = preg_replace('/\s*[\(\[\{]\s*(বাংলা|Bengali|Bangla|BN)\s*[\)\]\}]\s*$/ui', '', $title) ?? $title;
+        $title = preg_replace('/\s*[—\-]\s*(বাংলা|Bengali|Bangla)\s*$/ui', '', $title) ?? $title;
+        return trim($title);
+    }
+
+    public static function english_sibling_id(int $post_id): int
+    {
+        if (has_filter('wpml_object_id')) {
+            $en = apply_filters('wpml_object_id', $post_id, 'mcw_thread', true, 'en');
+            if ($en) {
+                return (int) $en;
+            }
+            $en = apply_filters('wpml_object_id', $post_id, 'post_mcw_thread', true, 'en');
+            if ($en) {
+                return (int) $en;
+            }
+        }
+        return $post_id;
+    }
+
+    public static function is_stub_body(array $blocks): bool
+    {
+        $plain = self::plain_from_body($blocks);
+        if ($plain === '') {
+            return true;
+        }
+        // Seeded WPML stub copy used during BN duplication.
+        if (mb_stripos($plain, 'বাংলা ডেমো') !== false || mb_stripos($plain, 'ডেমো অনুবাদ') !== false) {
+            return true;
+        }
+        if (stripos($plain, 'WPML') !== false && mb_stripos($plain, 'অনুবাদ') !== false && mb_strlen($plain) < 200) {
+            return true;
+        }
+        return false;
     }
 }

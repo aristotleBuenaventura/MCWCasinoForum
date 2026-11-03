@@ -7,6 +7,7 @@ import { DocumentTitle } from '../components/DocumentTitle'
 import { ForumImage } from '../components/ForumMedia'
 import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
+import { localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
 import { ART, CATEGORY_LOGOS, GUIDE_ART, REVIEW_ART, WIN_ART } from '../data/artwork'
@@ -28,6 +29,7 @@ function Stars({ value = 4.8 }: { value?: number }) {
 
 function FeedItem({ thread }: { thread: Thread }) {
   const { state, toggleLike, currentUser, toggleBookmark } = useForum()
+  const { t, lang } = useLocale()
   const toast = useToast()
   const [liked, setLiked] = useState(!!thread.liked)
   const [likes, setLikes] = useState(thread.likeCount || 0)
@@ -39,7 +41,7 @@ function FeedItem({ thread }: { thread: Thread }) {
 
   const vote = () => {
     if (!currentUser) {
-      toast('Log in to vote')
+      toast(t('thread.loginToVote'))
       return
     }
     setLiked((v) => !v)
@@ -52,7 +54,7 @@ function FeedItem({ thread }: { thread: Thread }) {
     const url = `${window.location.origin}${path}`
     try {
       await navigator.clipboard.writeText(url)
-      toast('Link copied')
+      toast(t('common.linkCopied'))
     } catch {
       toast(url)
     }
@@ -78,15 +80,17 @@ function FeedItem({ thread }: { thread: Thread }) {
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] prose-muted">
             <Avatar user={author} size={16} />
             <Username user={author} label="username" />
-            <span>· {timeAgo(thread.createdAt)}</span>
-            <Link to={`/communities/${forum?.slug}`} className="gold-text">{forum?.name}</Link>
-            {thread.solved && <span className="badge">Accepted answer</span>}
+            <span>· {timeAgo(thread.createdAt, lang)}</span>
+            <Link to={`/communities/${forum?.slug}`} className="gold-text">
+              {forum ? localizeCategoryName(forum.slug, forum.name, lang) : ''}
+            </Link>
+            {thread.solved && <span className="badge">{t('home.acceptedAnswer')}</span>}
             {rating && <Stars value={rating} />}
             <Link to={`/thread/${thread.id}`} className="inline-flex items-center gap-1 ml-auto hover:text-[var(--color-gold)]">
               <MessageCircle size={12} /> {replies}
             </Link>
             <button type="button" className="inline-flex items-center gap-1 hover:text-[var(--color-gold)]" onClick={share}>
-              <Share2 size={12} /> Share
+              <Share2 size={12} /> {t('common.share')}
             </button>
             {currentUser && (
               <button
@@ -100,7 +104,7 @@ function FeedItem({ thread }: { thread: Thread }) {
                 <Bookmark size={12} />
               </button>
             )}
-            {thread.unread && currentUser && <span className="text-[var(--color-gold)]">Unread</span>}
+            {thread.unread && currentUser && <span className="text-[var(--color-gold)]">{t('common.unread')}</span>}
           </div>
         </div>
       </div>
@@ -153,7 +157,7 @@ export function Home() {
       )
       setFeedReady(true)
     })
-  }, [tab, cacheThreads, cacheUsers])
+  }, [tab, lang, cacheThreads, cacheUsers])
 
   const filteredReviews = reviews.filter(
     (t) =>
@@ -165,9 +169,9 @@ export function Home() {
   const countFor = (...ids: string[]) =>
     state.categories.filter((c) => ids.includes(c.id)).reduce((n, c) => n + c.threadCount, 0)
   const activity = [
-    { name: 'JILI Games', count: countFor('cat_jili') },
-    { name: 'RTP Discussions', count: countFor('cat_rtp', 'cat_pragmatic') },
-    { name: 'Casino Reviews', count: countFor('cat_reviews') },
+    { name: t('home.jiliGames'), count: countFor('cat_jili') },
+    { name: t('home.rtpDiscussions'), count: countFor('cat_rtp', 'cat_pragmatic') },
+    { name: t('home.casinoReviewsActivity'), count: countFor('cat_reviews') },
   ]
   const maxActivity = Math.max(...activity.map((a) => a.count), 1)
 
@@ -182,14 +186,10 @@ export function Home() {
           <img src={ART.hero} alt="MCW casino crest" className="h-[88px] w-[88px] rounded-full object-cover shrink-0 border border-[#d7ae55]/40" />
           <div className="min-w-0">
             <h1 className="text-[18px] font-semibold gold-text leading-snug">
-              {lang === 'bn'
-                ? 'অনলাইন ক্যাসিনো খেলোয়াড়দের গ্র্যান্ড ফোরাম'
-                : 'The grand forum for online casino players'}
+              {t('home.heroTitle')}
             </h1>
             <p className="text-[12px] prose-muted mt-1">
-              {lang === 'bn'
-                ? 'যাচাইকৃত প্লেয়ার কমিউনিটির সাথে আলোচনা, রিভিউ ও স্ট্র্যাটেজি শেয়ার করুন।'
-                : 'Discuss, review and share strategies with a verified player community.'}
+              {t('home.heroSub')}
             </p>
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               {!currentUser ? (
@@ -198,43 +198,43 @@ export function Home() {
                 <Link to="/create" className="btn btn-primary">{t('nav.postThread')}</Link>
               )}
               <Link to="/communities" className="btn btn-secondary">{t('home.forumList')}</Link>
-              <span className="text-[11px] prose-muted ml-1">Active members {members.toLocaleString()}</span>
+              <span className="text-[11px] prose-muted ml-1">{t('home.activeMembers', { n: members.toLocaleString() })}</span>
             </div>
           </div>
         </div>
       </section>
 
       <section>
-        <div className="section-title mb-2">Category cards</div>
+        <div className="section-title mb-2">{t('home.categoryCards')}</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {CATEGORY_LOGOS.map((c) => (
             <Link key={c.slug} to={`/communities/${c.slug}`} className="forum-card p-1.5 hover:border-[var(--color-gold)]/40">
-              <img src={c.src} alt={c.name} className="h-14 w-full object-cover rounded-md" />
+              <img src={c.src} alt={localizeCategoryName(c.slug, c.name, lang)} className="h-14 w-full object-cover rounded-md" />
             </Link>
           ))}
         </div>
       </section>
 
       <section className="space-y-2">
-        {!feedReady && <div className="forum-card p-5 text-center prose-muted text-sm">Loading discussions…</div>}
-        {feedReady && feed.map((t) => <FeedItem key={t.id} thread={t} />)}
+        {!feedReady && <div className="forum-card p-5 text-center prose-muted text-sm">{t('home.loading')}</div>}
+        {feedReady && feed.map((item) => <FeedItem key={item.id} thread={item} />)}
         {feedReady && feed.length === 0 && (
           <div className="forum-card p-5 text-center prose-muted text-sm">
-            {tab === 'saved' ? 'Bookmark threads to save them here.' : 'No threads yet.'}
+            {tab === 'saved' ? t('home.bookmarkHint') : t('home.noThreads')}
           </div>
         )}
       </section>
 
       <section>
         <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="section-title">Latest casino reviews</div>
+          <div className="section-title">{t('home.latestReviews')}</div>
           <div className="flex items-center gap-1.5">
             <div className="relative">
               <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 prose-muted" />
               <input
                 value={reviewQuery}
                 onChange={(e) => setReviewQuery(e.target.value)}
-                placeholder="Search"
+                placeholder={t('home.search')}
                 className="input h-7 w-32 pl-7 text-[12px]"
               />
             </div>
@@ -242,18 +242,18 @@ export function Home() {
           </div>
         </div>
         <div className="grid md:grid-cols-3 gap-2">
-          {filteredReviews.map((t) => (
-            <Link key={t.id} to={`/thread/${t.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
-              <ForumImage url={t.mediaUrl} fallback={REVIEW_ART[t.id]} className="h-24 w-full object-cover" />
+          {filteredReviews.map((item) => (
+            <Link key={item.id} to={`/thread/${item.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
+              <ForumImage url={item.mediaUrl} fallback={REVIEW_ART[item.id]} className="h-24 w-full object-cover" />
               <div className="p-2.5">
-                <div className="text-[13px] font-semibold gold-text line-clamp-2">{t.title.replace(/ review.*/i, '')}</div>
+                <div className="text-[13px] font-semibold gold-text line-clamp-2">{item.title.replace(/ review.*/i, '')}</div>
                 <div className="mt-1"><Stars /></div>
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {(t.tags.length ? t.tags : ['Community Review']).map((tag) => (
+                  {(item.tags.length ? item.tags : [t('home.communityReview')]).map((tag) => (
                     <span key={tag} className="tag">{tag}</span>
                   ))}
                 </div>
-                <div className="mt-2 text-[11px] gold-text">Read Full Review</div>
+                <div className="mt-2 text-[11px] gold-text">{t('home.readReview')}</div>
               </div>
             </Link>
           ))}
@@ -261,14 +261,14 @@ export function Home() {
       </section>
 
       <section>
-        <div className="section-title mb-2">Community guides & resources</div>
+        <div className="section-title mb-2">{t('home.guides')}</div>
         <div className="grid md:grid-cols-3 gap-2">
-          {guides.map((t) => (
-            <Link key={t.id} to={`/thread/${t.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
-              <ForumImage url={t.mediaUrl} fallback={GUIDE_ART[t.id]} className="h-[72px] w-full object-cover" />
+          {guides.map((item) => (
+            <Link key={item.id} to={`/thread/${item.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
+              <ForumImage url={item.mediaUrl} fallback={GUIDE_ART[item.id]} className="h-[72px] w-full object-cover" />
               <div className="p-2.5">
-                <div className="text-[13px] font-semibold gold-text leading-snug">{t.title}</div>
-                <div className="text-[11px] prose-muted mt-1">{t.views} reads</div>
+                <div className="text-[13px] font-semibold gold-text leading-snug">{item.title}</div>
+                <div className="text-[11px] prose-muted mt-1">{t('home.reads', { n: item.views })}</div>
               </div>
             </Link>
           ))}
@@ -277,7 +277,7 @@ export function Home() {
 
       <section className="grid md:grid-cols-2 gap-2">
         <div className="forum-card p-3">
-          <div className="section-title mb-2">Weekly top contributors</div>
+          <div className="section-title mb-2">{t('home.weekly')}</div>
           <ul className="space-y-2">
             {weekly.map(({ user, replies }, rank) =>
               user ? (
@@ -287,7 +287,7 @@ export function Home() {
                     <div className="min-w-0">
                       <div className="text-[13px] truncate"><Username user={user} link={false} /></div>
                       <div className="text-[10px] prose-muted">
-                        {rank === 0 ? 'Reviewer of the Month' : rank === 1 ? 'High Roller Tier' : 'Community Voice'}
+                        {rank === 0 ? t('home.reviewerMonth') : rank === 1 ? t('home.highRoller') : t('home.communityVoice')}
                       </div>
                     </div>
                   </Link>
@@ -298,22 +298,22 @@ export function Home() {
           </ul>
         </div>
         <div className="forum-card p-3">
-          <div className="section-title mb-2">Big win showcases</div>
+          <div className="section-title mb-2">{t('home.bigWinShowcases')}</div>
           <ul className="space-y-2">
-            {bigWins.slice(0, 3).map((t) => {
-              const author = t.author || state.users.find((u) => u.id === t.authorId)
+            {bigWins.slice(0, 3).map((item) => {
+              const author = item.author || state.users.find((u) => u.id === item.authorId)
               return (
-                <li key={t.id}>
-                  <Link to={`/thread/${t.id}`} className="flex items-center justify-between gap-2">
+                <li key={item.id}>
+                  <Link to={`/thread/${item.id}`} className="flex items-center justify-between gap-2">
                     <span className="text-[13px] line-clamp-1"><Username user={author} link={false} /></span>
-                    <span className="text-[12px] gold-text shrink-0">{t.views}</span>
+                    <span className="text-[12px] gold-text shrink-0">{item.views}</span>
                   </Link>
                 </li>
               )
             })}
           </ul>
           <div className="mt-3">
-            <div className="section-title mb-2">Community activity</div>
+            <div className="section-title mb-2">{t('home.communityActivity')}</div>
             {activity.map((a) => (
               <div key={a.name} className="mb-1.5">
                 <div className="flex justify-between text-[11px] mb-0.5">
@@ -332,20 +332,20 @@ export function Home() {
       <section className="grid md:grid-cols-2 gap-2">
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="section-title">Live community wins & screenshots</div>
+            <div className="section-title">{t('home.wins')}</div>
             <Link to="/communities/big-wins" className="text-[11px] gold-text">{t('home.viewAll')}</Link>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {bigWins.slice(0, 4).map((t) => (
-              <Link key={t.id} to={`/thread/${t.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
-                <ForumImage url={t.mediaUrl} fallback={WIN_ART[t.id]} className="h-20 w-full object-cover" />
-                <div className="p-2 text-[11px] font-medium line-clamp-2">{t.title}</div>
+            {bigWins.slice(0, 4).map((item) => (
+              <Link key={item.id} to={`/thread/${item.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
+                <ForumImage url={item.mediaUrl} fallback={WIN_ART[item.id]} className="h-20 w-full object-cover" />
+                <div className="p-2 text-[11px] font-medium line-clamp-2">{item.title}</div>
               </Link>
             ))}
           </div>
         </div>
         <div>
-          <div className="section-title mb-2">Top game providers</div>
+          <div className="section-title mb-2">{t('home.providers')}</div>
           <div className="space-y-2">
             {providers.map((p) => (
               <Link key={p.id} to={p.url || '/communities'} className="forum-card p-2 flex items-center gap-3 hover:border-[var(--color-gold)]/40">

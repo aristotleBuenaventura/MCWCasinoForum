@@ -5,12 +5,15 @@ import { Avatar } from '../components/Avatar'
 import { Username } from '../components/Username'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { useForum } from '../context/ForumContext'
+import { localizeCategoryDesc, localizeCategoryName } from '../i18n/messages'
+import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
 
 export function Communities() {
   const { topCategories, childCategories, cacheThreads } = useForum()
+  const { t, lang } = useLocale()
   const [params, setParams] = useSearchParams()
   const newOnly = params.get('new') === '1'
   const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({})
@@ -22,7 +25,7 @@ export function Communities() {
       setLatestThreads(res.threads)
       cacheThreads(res.threads)
     })
-  }, [cacheThreads])
+  }, [cacheThreads, lang])
 
   const rows = useMemo(() => {
     return topCategories.map((category) => {
@@ -41,15 +44,15 @@ export function Communities() {
 
   return (
     <div className="max-w-[1100px] mx-auto">
-      <DocumentTitle title="Forum list — MCW Forum" description="Browse MCW Casino Forum communities." />
+      <DocumentTitle title={`${t('communities.forumList')} — MCW Forum`} description="Browse MCW Casino Forum communities." />
       <div className="flex items-center justify-between mb-2">
-        <h1 className="page-title gold-text">Forum list</h1>
+        <h1 className="page-title gold-text">{t('communities.forumList')}</h1>
         <button
           type="button"
           className={`btn ${newOnly ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setParams(newOnly ? {} : { new: '1' })}
         >
-          <Zap size={13} /> New posts
+          <Zap size={13} /> {t('communities.newPosts')}
         </button>
       </div>
 
@@ -68,14 +71,16 @@ export function Communities() {
                 <MessageCircle size={18} className="text-[#c45c4a] shrink-0" />
                 <div className="min-w-0">
                   <Link to={`/communities/${category.slug}`} className="text-[14px] font-semibold gold-text hover:underline">
-                    {category.name}
+                    {localizeCategoryName(category.slug, category.name, lang)}
                   </Link>
-                  <p className="text-[12px] prose-muted mt-0.5 leading-snug">{category.description}</p>
+                  <p className="text-[12px] prose-muted mt-0.5 leading-snug">
+                    {localizeCategoryDesc(category.slug, category.description, lang)}
+                  </p>
                   {children.length > 0 && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                       {children.slice(0, 2).map((child) => (
                         <Link key={child.id} to={`/communities/${child.slug}`} className="text-[12px] gold-text hover:underline">
-                          {child.name}
+                          {localizeCategoryName(child.slug, child.name, lang)}
                         </Link>
                       ))}
                       {children.length > 2 && (
@@ -84,18 +89,18 @@ export function Communities() {
                           className="text-[12px] gold-text hover:underline inline-flex items-center gap-1"
                           onClick={() => setOpenSubs((s) => ({ ...s, [category.id]: !s[category.id] }))}
                         >
-                          Sub-forums <ChevronDown size={12} className={expanded ? 'rotate-180' : ''} />
+                          {t('communities.subForums')} <ChevronDown size={12} className={expanded ? 'rotate-180' : ''} />
                         </button>
                       )}
                     </div>
                   )}
                 </div>
                 <div className="stat-col text-[12px] prose-muted">
-                  <div>Threads</div>
+                  <div>{t('common.threads')}</div>
                   <div className="text-[var(--color-ink)] font-medium">{compactNumber(threads)}</div>
                 </div>
                 <div className="stat-col text-[12px] prose-muted">
-                  <div>Messages</div>
+                  <div>{t('common.messages')}</div>
                   <div className="text-[var(--color-ink)] font-medium">{compactNumber(messages)}</div>
                 </div>
                 <div className="last-col min-w-0 flex items-start gap-2">
@@ -107,12 +112,12 @@ export function Communities() {
                           {latest.title}
                         </Link>
                         <div className="text-[11px] prose-muted truncate">
-                          {forumTime(latest.createdAt)} · <Username user={author} label="username" />
+                          {forumTime(latest.createdAt, lang)} · <Username user={author} label="username" />
                         </div>
                       </div>
                     </>
                   ) : (
-                    <span className="text-[12px] prose-muted">No threads yet</span>
+                    <span className="text-[12px] prose-muted">{t('communities.noThreads')}</span>
                   )}
                 </div>
               </article>
@@ -120,7 +125,7 @@ export function Communities() {
                 <div className="px-12 pb-3 flex flex-wrap gap-x-4 gap-y-1">
                   {children.slice(2).map((child) => (
                     <Link key={child.id} to={`/communities/${child.slug}`} className="text-[12px] gold-text hover:underline">
-                      {child.name}
+                      {localizeCategoryName(child.slug, child.name, lang)}
                     </Link>
                   ))}
                 </div>
@@ -129,7 +134,7 @@ export function Communities() {
           )
         })}
         {visible.length === 0 && (
-          <div className="p-6 text-center text-sm prose-muted">No new posts in the last 48 hours.</div>
+          <div className="p-6 text-center text-sm prose-muted">{t('communities.noNewPosts')}</div>
         )}
       </section>
     </div>
