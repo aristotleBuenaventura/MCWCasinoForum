@@ -16,6 +16,8 @@ export function Avatar({
         alt={name}
         className="rounded-full object-cover shrink-0 border border-[#2a2f3d]"
         style={{ width: size, height: size }}
+        loading="lazy"
+        decoding="async"
       />
     )
   }

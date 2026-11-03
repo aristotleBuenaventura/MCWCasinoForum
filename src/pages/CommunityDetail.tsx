@@ -1,5 +1,5 @@
 import { ChevronDown, Pin, ThumbsUp } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { Username } from '../components/Username'
@@ -8,11 +8,40 @@ import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
 import { localizeCategoryDesc, localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
-import { api } from '../lib/api'
+import { prefetchCommunity, takePrefetchedCommunity } from '../lib/communityPrefetch'
+import { prefetchThread } from '../lib/threadPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
 
 type SortKey = 'latest' | 'popular' | 'pinned'
+
+const LIST_LIMIT = 20
+
+function ThreadRowSkeleton() {
+  return (
+    <article className="thread-row animate-pulse" aria-hidden="true">
+      <div className="h-8 w-8 rounded-full bg-[var(--color-panel-2)] shrink-0" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-3 w-3/4 max-w-md rounded bg-[var(--color-panel-2)]" />
+        <div className="h-2.5 w-40 rounded bg-[var(--color-panel-2)]" />
+      </div>
+      <div className="stat-col hidden sm:block">
+        <div className="h-3 w-10 rounded bg-[var(--color-panel-2)] ml-auto" />
+      </div>
+      <div className="stat-col hidden sm:block space-y-1">
+        <div className="h-2.5 w-14 rounded bg-[var(--color-panel-2)] ml-auto" />
+        <div className="h-2.5 w-12 rounded bg-[var(--color-panel-2)] ml-auto" />
+      </div>
+      <div className="last-col flex items-center justify-end gap-2">
+        <div className="space-y-1">
+          <div className="h-2.5 w-16 rounded bg-[var(--color-panel-2)] ml-auto" />
+          <div className="h-2.5 w-12 rounded bg-[var(--color-panel-2)] ml-auto" />
+        </div>
+        <div className="h-[26px] w-[26px] rounded-full bg-[var(--color-panel-2)]" />
+      </div>
+    </article>
+  )
+}
 
 export function CommunityDetail() {
   const { slug } = useParams()
@@ -23,20 +52,76 @@ export function CommunityDetail() {
   const { t, lang } = useLocale()
   const category = getCategoryBySlug(slug || '')
   const children = category ? childCategories(category.id) : []
-  const [threads, setThreads] = useState<Thread[]>([])
+
+  const cachedForForum = useMemo(() => {
+    if (!category) return [] as Thread[]
+    const childIds = new Set(children.map((c) => c.id))
+    const ids = new Set([category.id, ...childIds])
+    return state.threads
+      .filter((item) => ids.has(item.forumId))
+      .slice(0, LIST_LIMIT)
+  }, [category, children, state.threads])
+
+  const [threads, setThreads] = useState<Thread[]>(cachedForForum)
+  const [listReady, setListReady] = useState(cachedForForum.length > 0)
+
+  // Keep list seeded if feed cache arrives before API
+  useEffect(() => {
+    if (!listReady && cachedForForum.length > 0) {
+      setThreads(cachedForForum)
+    }
+  }, [cachedForForum, listReady])
 
   useEffect(() => {
     if (!slug) return
-    const sortKey = sort === 'pinned' ? 'latest' : sort
-    void api<{ threads: Thread[] }>(`/api/threads?forum=${encodeURIComponent(slug)}&sort=${sortKey}&limit=40`).then((res) => {
-      if (!res.ok) return
-      const list = sort === 'pinned' ? res.threads.filter((t) => t.pinned) : res.threads
-      setThreads(list)
-      cacheThreads(list)
+    let cancelled = false
+    setListReady(false)
+
+    const apply = (list: Thread[]) => {
+      if (cancelled) return
+      // Don't re-check `cancelled` inside startTransition — StrictMode cleanup
+      // can flip it true after schedule and leave listReady stuck false.
+      startTransition(() => {
+        setThreads(list)
+        cacheThreads(list)
+        setListReady(true)
+      })
+    }
+
+    const pending =
+      takePrefetchedCommunity(slug, sort, lang) ||
+      prefetchCommunity(slug, { sort, limit: LIST_LIMIT, lang })
+
+    void pending.then((list) => {
+      if (cancelled) return
+      if (!list) {
+        setListReady(true)
+        return
+      }
+      apply(list)
     })
+
+    return () => {
+      cancelled = true
+    }
   }, [slug, sort, lang, cacheThreads])
 
   if (!category) {
+    // Categories still booting — show shell instead of "not found" flash
+    if (!state.categories.length) {
+      return (
+        <div className="max-w-[1100px] mx-auto space-y-2">
+          <div className="h-3 w-40 rounded bg-[var(--color-panel-2)] animate-pulse" />
+          <div className="h-8 w-64 rounded bg-[var(--color-panel-2)] animate-pulse" />
+          <div className="h-3 w-80 rounded bg-[var(--color-panel-2)] animate-pulse" />
+          <section className="forum-list mt-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ThreadRowSkeleton key={i} />
+            ))}
+          </section>
+        </div>
+      )
+    }
     return (
       <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
         <p>{t('community.notFound')}</p>
@@ -50,6 +135,7 @@ export function CommunityDetail() {
   const regular = threads.filter((t) => !t.pinned)
   const catName = localizeCategoryName(category.slug, category.name, lang)
   const catDesc = localizeCategoryDesc(category.slug, category.description, lang)
+  const skeletonCount = Math.min(6, Math.max(3, category.threadCount || 4))
 
   const setSort = (value: SortKey) => {
     setParams(value === 'latest' ? {} : { sort: value })
@@ -118,7 +204,13 @@ export function CommunityDetail() {
           {children.map((c, i) => (
             <span key={c.id}>
               {i > 0 && ' · '}
-              <Link to={`/communities/${c.slug}`} className="gold-text hover:underline">
+              <Link
+                to={`/communities/${c.slug}`}
+                className="gold-text hover:underline"
+                onMouseEnter={() => prefetchCommunity(c.slug, { lang, limit: LIST_LIMIT })}
+                onFocus={() => prefetchCommunity(c.slug, { lang, limit: LIST_LIMIT })}
+                onPointerDown={() => prefetchCommunity(c.slug, { lang, limit: LIST_LIMIT })}
+              >
                 {localizeCategoryName(c.slug, c.name, lang)}
               </Link>
             </span>
@@ -135,7 +227,12 @@ export function CommunityDetail() {
           <ThreadRow key={item.id} thread={item} />
         ))}
 
-        {threads.length === 0 && (
+        {!listReady && threads.length === 0 &&
+          Array.from({ length: skeletonCount }).map((_, i) => (
+            <ThreadRowSkeleton key={`sk-${i}`} />
+          ))}
+
+        {listReady && threads.length === 0 && (
           <div className="p-6 text-center text-sm prose-muted">{t('community.noThreadsYet')}</div>
         )}
       </section>
@@ -161,7 +258,13 @@ function ThreadRow({ thread, pleaseRead = false }: { thread: Thread; pleaseRead?
       <Avatar user={author} size={32} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-1">
-          <Link to={`/thread/${thread.id}`} className="text-[13px] font-semibold gold-text hover:underline line-clamp-2">
+          <Link
+            to={`/thread/${thread.id}`}
+            className="text-[13px] font-semibold gold-text hover:underline line-clamp-2"
+            onMouseEnter={() => prefetchThread(thread.id, { lang, limit: 20 })}
+            onFocus={() => prefetchThread(thread.id, { lang, limit: 20 })}
+            onPointerDown={() => prefetchThread(thread.id, { lang, limit: 20 })}
+          >
             {pleaseRead && <Pin size={12} className="inline mr-1 -mt-0.5" />}
             {pleaseRead && <span>{t('thread.pleaseRead')}</span>}
             {thread.title}

@@ -11,6 +11,8 @@ import { localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
 import { ART, CATEGORY_LOGOS, GUIDE_ART, REVIEW_ART, WIN_ART } from '../data/artwork'
+import { prefetchCommunity } from '../lib/communityPrefetch'
+import { prefetchThread } from '../lib/threadPrefetch'
 import { timeAgo } from '../lib/utils'
 import type { Thread, User } from '../types'
 
@@ -73,7 +75,13 @@ function FeedItem({ thread }: { thread: Thread }) {
           </button>
         </div>
         <div className="min-w-0 flex-1">
-          <Link to={`/thread/${thread.id}`} className="block text-[14px] font-semibold leading-snug gold-text hover:underline">
+          <Link
+            to={`/thread/${thread.id}`}
+            className="block text-[14px] font-semibold leading-snug gold-text hover:underline"
+            onMouseEnter={() => prefetchThread(thread.id, { lang, limit: 20 })}
+            onFocus={() => prefetchThread(thread.id, { lang, limit: 20 })}
+            onPointerDown={() => prefetchThread(thread.id, { lang, limit: 20 })}
+          >
             {thread.title}
           </Link>
           <p className="text-[12px] prose-muted mt-1 line-clamp-1">{thread.content}</p>
@@ -126,37 +134,55 @@ export function Home() {
   const [feedReady, setFeedReady] = useState(false)
   const members = memberCount
 
+  // Fast first paint: feed only, then extras in a second request.
   useEffect(() => {
+    let cancelled = false
     setFeedReady(false)
-    void api<{
-      feed: { threads: Thread[] }
-      reviews: Thread[]
-      guides: Thread[]
-      wins: Thread[]
-      weekly: { user: User | null; replies: number }[]
-    }>(`/api/home?tab=${encodeURIComponent(tab)}`).then((res) => {
+    setReviews([])
+    setGuides([])
+    setBigWins([])
+    setWeekly([])
+
+    void api<{ feed: { threads: Thread[] } }>(
+      `/api/home?tab=${encodeURIComponent(tab)}&sections=feed`,
+    ).then((res) => {
+      if (cancelled) return
       if (!res.ok) {
         setFeedReady(true)
         return
       }
       const feedThreads = res.feed?.threads ?? []
+      setFeed(feedThreads)
+      cacheThreads(feedThreads)
+      cacheUsers(feedThreads.map((t) => t.author).filter((u): u is User => Boolean(u)))
+      setFeedReady(true)
+    })
+
+    void api<{
+      reviews: Thread[]
+      guides: Thread[]
+      wins: Thread[]
+      weekly: { user: User | null; replies: number }[]
+    }>(`/api/home?tab=${encodeURIComponent(tab)}&sections=extras`).then((res) => {
+      if (cancelled || !res.ok) return
       const nextReviews = res.reviews ?? []
       const nextGuides = res.guides ?? []
       const nextWins = res.wins ?? []
-      const nextWeekly = res.weekly ?? []
-      setFeed(feedThreads)
       setReviews(nextReviews)
       setGuides(nextGuides)
       setBigWins(nextWins)
-      setWeekly(nextWeekly)
-      cacheThreads([...feedThreads, ...nextReviews, ...nextGuides, ...nextWins])
+      setWeekly(res.weekly ?? [])
+      cacheThreads([...nextReviews, ...nextGuides, ...nextWins])
       cacheUsers(
-        [...feedThreads, ...nextReviews, ...nextGuides, ...nextWins]
+        [...nextReviews, ...nextGuides, ...nextWins]
           .map((t) => t.author)
           .filter((u): u is User => Boolean(u)),
       )
-      setFeedReady(true)
     })
+
+    return () => {
+      cancelled = true
+    }
   }, [tab, lang, cacheThreads, cacheUsers])
 
   const filteredReviews = reviews.filter(
@@ -208,8 +234,15 @@ export function Home() {
         <div className="section-title mb-2">{t('home.categoryCards')}</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {CATEGORY_LOGOS.map((c) => (
-            <Link key={c.slug} to={`/communities/${c.slug}`} className="forum-card p-1.5 hover:border-[var(--color-gold)]/40">
-              <img src={c.src} alt={localizeCategoryName(c.slug, c.name, lang)} className="h-14 w-full object-cover rounded-md" />
+            <Link
+              key={c.slug}
+              to={`/communities/${c.slug}`}
+              className="forum-card p-1.5 hover:border-[var(--color-gold)]/40"
+              onMouseEnter={() => prefetchCommunity(c.slug, { lang, limit: 20 })}
+              onFocus={() => prefetchCommunity(c.slug, { lang, limit: 20 })}
+              onPointerDown={() => prefetchCommunity(c.slug, { lang, limit: 20 })}
+            >
+              <img src={c.src} alt={localizeCategoryName(c.slug, c.name, lang)} className="h-14 w-full object-cover rounded-md" loading="lazy" decoding="async" />
             </Link>
           ))}
         </div>

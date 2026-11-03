@@ -58,22 +58,35 @@ class MCW_Forum_Translate
         self::ensure_comment($post_id, $body, $source);
     }
 
-    public static function localized_body(int $post_id, string $lang): array
+    /**
+     * @param bool $live When false (default for reads), never call external translators.
+     */
+    public static function localized_body(int $post_id, string $lang, bool $live = false): array
     {
         $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
-        $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
-        if (is_array($body) && $body && !self::is_stub_body($body) && self::looks_like_lang(self::plain_from_body($body), $lang)) {
-            return $body;
-        }
-        // For threads, pull from English sibling then translate.
         $source_id = self::english_sibling_id($post_id);
+
+        $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
+        if (is_array($body) && $body && !self::is_stub_body($body)) {
+            if ($lang === 'en' || self::looks_like_lang(self::plain_from_body($body), $lang)) {
+                return $body;
+            }
+        }
         if ($source_id !== $post_id) {
             $from_en = get_post_meta($source_id, 'mcw_body_' . $lang, true);
-            if (is_array($from_en) && $from_en && !self::is_stub_body($from_en) && self::looks_like_lang(self::plain_from_body($from_en), $lang)) {
-                update_post_meta($post_id, 'mcw_body_' . $lang, $from_en);
-                return $from_en;
+            if (is_array($from_en) && $from_en && !self::is_stub_body($from_en)) {
+                if ($lang === 'en' || self::looks_like_lang(self::plain_from_body($from_en), $lang)) {
+                    return $from_en;
+                }
             }
-            self::ensure_thread($post_id);
+        }
+
+        if ($live) {
+            if ($source_id !== $post_id) {
+                self::ensure_thread($post_id);
+            } else {
+                self::ensure_missing($post_id);
+            }
             $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
             if (is_array($body) && $body && !self::is_stub_body($body)) {
                 return $body;
@@ -83,11 +96,7 @@ class MCW_Forum_Translate
                 return $from_en;
             }
         }
-        self::ensure_missing($post_id);
-        $body = get_post_meta($post_id, 'mcw_body_' . $lang, true);
-        if (is_array($body) && $body && !self::is_stub_body($body)) {
-            return $body;
-        }
+
         $fallback = get_post_meta($source_id, 'mcw_body', true);
         if (!is_array($fallback) || !$fallback) {
             $fallback = get_post_meta($post_id, 'mcw_body', true);
@@ -95,22 +104,27 @@ class MCW_Forum_Translate
         return is_array($fallback) ? $fallback : [];
     }
 
-    public static function localized_content(int $post_id, string $lang): string
+    public static function localized_content(int $post_id, string $lang, bool $live = false): string
     {
         $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
         $content = get_post_meta($post_id, 'mcw_content_' . $lang, true);
-        if (is_string($content) && $content !== '') {
+        if (is_string($content) && $content !== '' && ($lang === 'en' || self::looks_like_lang($content, $lang))) {
             return $content;
         }
-        return self::plain_from_body(self::localized_body($post_id, $lang));
+        $source_id = self::english_sibling_id($post_id);
+        if ($source_id !== $post_id) {
+            $alt = get_post_meta($source_id, 'mcw_content_' . $lang, true);
+            if (is_string($alt) && $alt !== '' && ($lang === 'en' || self::looks_like_lang($alt, $lang))) {
+                return $alt;
+            }
+        }
+        return self::plain_from_body(self::localized_body($post_id, $lang, $live));
     }
 
     /**
-     * Lazy-translate thread titles; cached in mcw_title_{lang}.
-     * Always prefers the English WPML sibling as the source text so stub
-     * BN posts titled "… (বাংলা)" still get a real Bengali title.
+     * Titles: prefer cache / WPML EN sibling. Live translate only when $live=true (backfill/CLI).
      */
-    public static function localized_title(int $post_id, string $lang): string
+    public static function localized_title(int $post_id, string $lang, bool $live = false): string
     {
         $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
         $source_id = self::english_sibling_id($post_id);
@@ -130,7 +144,6 @@ class MCW_Forum_Translate
 
         $cached = get_post_meta($post_id, 'mcw_title_' . $lang, true);
         if (!is_string($cached) || $cached === '' || !self::looks_like_lang($cached, $lang)) {
-            // Also check cache on the English sibling (shared across WPML pair)
             $cached_en = get_post_meta($source_id, 'mcw_title_' . $lang, true);
             if (is_string($cached_en) && $cached_en !== '' && self::looks_like_lang($cached_en, $lang)) {
                 $cached = $cached_en;
@@ -142,8 +155,12 @@ class MCW_Forum_Translate
             return $cached;
         }
 
+        if (!$live) {
+            // Fast path: serve English until offline backfill fills the cache.
+            return $english;
+        }
+
         $translated = self::translate_text($english, 'en', $lang);
-        // If translator failed and returned English, do not poison the cache.
         if ($translated === '' || !self::looks_like_lang($translated, $lang)) {
             return $translated !== '' ? $translated : $english;
         }
@@ -160,9 +177,9 @@ class MCW_Forum_Translate
         if (!$post) {
             return;
         }
-        // Force title localization for both langs (writes cache).
-        self::localized_title($post_id, 'bn');
-        self::localized_title($post_id, 'en');
+        // Force title localization for both langs (writes cache via live translate).
+        self::localized_title($post_id, 'bn', true);
+        self::localized_title($post_id, 'en', true);
 
         $source_id = self::english_sibling_id($post_id);
         $source_post = get_post($source_id) ?: $post;
@@ -189,7 +206,7 @@ class MCW_Forum_Translate
         }
     }
 
-    public static function localized_term_field(int $term_id, string $field, string $native, string $lang): string
+    public static function localized_term_field(int $term_id, string $field, string $native, string $lang, bool $live = false): string
     {
         $lang = in_array($lang, self::LANGS, true) ? $lang : 'en';
         $native = html_entity_decode($native, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -204,6 +221,9 @@ class MCW_Forum_Translate
         $source = self::detect_lang($native);
         if ($source === $lang) {
             update_term_meta($term_id, $meta_key, $native);
+            return $native;
+        }
+        if (!$live) {
             return $native;
         }
         $translated = self::translate_text($native, $source, $lang);

@@ -1,25 +1,38 @@
 import { Bookmark, Calendar, Flag, Heart, MessageSquare, Pin, Share2, ThumbsUp, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DocumentTitle } from '../components/DocumentTitle'
-import { api } from '../lib/api'
 import { Avatar } from '../components/Avatar'
 import { Username } from '../components/Username'
 import { RankBadges } from '../components/RankBadges'
 import { LoginLink } from '../components/LoginModal'
 import { PostBodyView } from '../components/PostBodyView'
-import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
-import { AdRotator } from '../components/AdRotator'
 import { useForum } from '../context/ForumContext'
 import { localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { setActiveThreadTranslations } from '../i18n/threadTranslations'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
+import { prefetchThread, takePrefetchedThread } from '../lib/threadPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Comment, PostBody, Thread, User } from '../types'
 
-const PER_PAGE = 10
+const PER_PAGE = 20
+
+const PostComposer = lazy(() =>
+  import('../components/PostComposer').then((m) => ({ default: m.PostComposer })),
+)
+const AdRotator = lazy(() =>
+  import('../components/AdRotator').then((m) => ({ default: m.AdRotator })),
+)
 
 type ThreadComment = Comment & { author?: User | null; likeCount?: number; liked?: boolean }
 
@@ -54,6 +67,38 @@ function MemberCard({ user }: { user?: User }) {
   )
 }
 
+function PostSkeleton() {
+  return (
+    <article className="xf-post animate-pulse" aria-hidden="true">
+      <aside className="xf-member">
+        <div className="mx-auto h-[72px] w-[72px] rounded-full bg-[var(--color-panel-2)]" />
+        <div className="mt-3 mx-auto h-3 w-20 rounded bg-[var(--color-panel-2)]" />
+        <div className="mt-2 mx-auto h-3 w-16 rounded bg-[var(--color-panel-2)]" />
+      </aside>
+      <div className="xf-body space-y-3">
+        <div className="h-3 w-28 rounded bg-[var(--color-panel-2)]" />
+        <div className="h-3 w-full rounded bg-[var(--color-panel-2)]" />
+        <div className="h-3 w-[92%] rounded bg-[var(--color-panel-2)]" />
+        <div className="h-3 w-[70%] rounded bg-[var(--color-panel-2)]" />
+      </div>
+    </article>
+  )
+}
+
+function ThreadShellSkeleton({ title }: { title?: string }) {
+  const { t } = useLocale()
+  return (
+    <div className="max-w-[1100px] mx-auto space-y-3">
+      <div className="h-3 w-40 rounded bg-[var(--color-panel-2)] animate-pulse" />
+      <h1 className="page-title gold-text leading-snug max-w-3xl">
+        {title || t('thread.loading')}
+      </h1>
+      <PostSkeleton />
+      <PostSkeleton />
+    </div>
+  )
+}
+
 export function ThreadDetail() {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
@@ -79,64 +124,132 @@ export function ThreadDetail() {
     cacheThreads,
   } = useForum()
 
-  const [thread, setThread] = useState<Thread | null>(state.threads.find((t) => t.id === id) || null)
-  const [loading, setLoading] = useState(!state.threads.find((t) => t.id === id))
+  const cachedThread = useMemo(
+    () => (id ? state.threads.find((item) => item.id === id) || null : null),
+    [id, state.threads],
+  )
+
+  const [thread, setThread] = useState<Thread | null>(cachedThread)
   const [comments, setComments] = useState<ThreadComment[]>([])
+  const [commentsReady, setCommentsReady] = useState(false)
   const [commentTotal, setCommentTotal] = useState(0)
+  const [notFound, setNotFound] = useState(false)
+  const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
+  const [uploading, setUploading] = useState(false)
+  const [saved, setSaved] = useState(!!cachedThread?.bookmarked)
+  const [quoteParent, setQuoteParent] = useState<string | null>(null)
+  const [composerReady, setComposerReady] = useState(false)
+  const [adReady, setAdReady] = useState(false)
+
   const authorCached = thread ? getUser(thread.authorId) : undefined
   const author = authorCached ? { ...thread?.author, ...authorCached } : thread?.author
   const forum = thread ? state.categories.find((c) => c.id === thread.forumId) : undefined
-  const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
-  const [uploading, setUploading] = useState(false)
-  const [saved, setSaved] = useState(!!thread?.bookmarked)
-  const [quoteParent, setQuoteParent] = useState<string | null>(null)
 
+  // Keep local thread in sync if cache arrives from feed navigation
+  useEffect(() => {
+    if (cachedThread && (!thread || thread.id !== cachedThread.id)) {
+      setThread(cachedThread)
+      setSaved(!!cachedThread.bookmarked)
+      setNotFound(false)
+    }
+  }, [cachedThread, thread])
+
+  // Progressive load: paint OP from cache immediately, then hydrate via prefetch/API.
   useEffect(() => {
     if (!id) return
-    void api<{ thread: Thread; translations?: Record<string, string> }>(`/api/threads/${id}`).then((res) => {
-      if (!res.ok) {
-        setThread(null)
-        setActiveThreadTranslations(null)
-        setLoading(false)
-        return
-      }
-      const translations = res.thread.translations || res.translations || undefined
-      const next = translations ? { ...res.thread, translations } : res.thread
+    let cancelled = false
+    setCommentsReady(false)
+    setNotFound(false)
+
+    const apply = (bundle: {
+      thread: Thread
+      translations?: Record<string, string>
+      comments: ThreadComment[]
+      commentTotal: number
+    }) => {
+      if (cancelled) return
+      const next = bundle.translations ? { ...bundle.thread, translations: bundle.translations } : bundle.thread
+      // Urgent: OP / title
       setThread(next)
-      setActiveThreadTranslations(translations || null)
+      setActiveThreadTranslations(bundle.translations || null)
       setSaved(!!next.bookmarked)
       cacheThreads([next])
       if (next.author) cacheUsers([next.author])
-      // If WPML resolved to a different post id for this language, sync the URL
+      // Non-urgent: comments list (keeps UI responsive).
+      // Don't re-check `cancelled` inside startTransition — StrictMode cleanup
+      // can flip it true after schedule and leave commentsReady stuck false.
+      startTransition(() => {
+        setComments(bundle.comments)
+        setCommentTotal(bundle.commentTotal)
+        cacheUsers(bundle.comments.map((c) => c.author).filter((u): u is User => Boolean(u)))
+        setCommentsReady(true)
+      })
       if (next.id && next.id !== id) {
         const qs = params.toString()
         navigate(`/thread/${next.id}${qs ? `?${qs}` : ''}`, { replace: true })
       }
-      setLoading(false)
-    })
-    return () => setActiveThreadTranslations(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch on thread id / language
-  }, [id, lang, cacheThreads, cacheUsers, navigate])
+    }
 
-  useEffect(() => {
-    if (!id) return
-    void api<{ comments: ThreadComment[]; total: number }>(
-      `/api/threads/${id}/comments?page=${page}&limit=${PER_PAGE}`,
-    ).then((res) => {
-      if (!res.ok) return
-      setComments(res.comments)
-      setCommentTotal(res.total)
-      cacheUsers(res.comments.map((c) => c.author).filter((u): u is User => Boolean(u)))
+    const pending = takePrefetchedThread(id, page, lang) || prefetchThread(id, { page, limit: PER_PAGE, lang })
+    void pending.then((bundle) => {
+      if (cancelled) return
+      if (!bundle) {
+        if (!cachedThread) setNotFound(true)
+        setComments([])
+        setCommentTotal(0)
+        setCommentsReady(true)
+        setActiveThreadTranslations(null)
+        return
+      }
+      apply(bundle)
     })
-  }, [id, page, lang, cacheUsers])
 
+    return () => {
+      cancelled = true
+      setActiveThreadTranslations(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, page, lang, cacheThreads, cacheUsers, navigate])
+
+  // Defer view bump so it never contends with first paint
   useEffect(() => {
     if (!id) return
     const key = `mcw_viewed_${id}`
     if (sessionStorage.getItem(key)) return
-    sessionStorage.setItem(key, '1')
-    bumpViews(id)
+    const run = () => {
+      sessionStorage.setItem(key, '1')
+      bumpViews(id)
+    }
+    const ric = window.requestIdleCallback?.bind(window)
+    if (ric) {
+      const idle = ric(run, { timeout: 2500 })
+      return () => window.cancelIdleCallback?.(idle)
+    }
+    const t = window.setTimeout(run, 800)
+    return () => window.clearTimeout(t)
   }, [id, bumpViews])
+
+  // Lazy-mount heavy UI (composer + ad) after first paint / idle
+  useEffect(() => {
+    setComposerReady(false)
+    setAdReady(false)
+    const ric = window.requestIdleCallback?.bind(window)
+    if (ric) {
+      const idle = ric(
+        () => {
+          setComposerReady(true)
+          setAdReady(true)
+        },
+        { timeout: 1200 },
+      )
+      return () => window.cancelIdleCallback?.(idle)
+    }
+    const t = window.setTimeout(() => {
+      setComposerReady(true)
+      setAdReady(true)
+    }, 200)
+    return () => window.clearTimeout(t)
+  }, [id])
 
   const posts = useMemo(() => {
     const mapped = comments.map((c) => ({
@@ -168,11 +281,7 @@ export function ThreadDetail() {
   const pageCount = Math.max(1, Math.ceil((commentTotal + 1) / PER_PAGE))
   const pageItems = posts
 
-  if (loading) {
-    return <div className="forum-card p-6 text-center max-w-[1100px] mx-auto prose-muted">{t('thread.loading')}</div>
-  }
-
-  if (!thread) {
+  if (notFound && !thread) {
     return (
       <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
         <p>{t('thread.notFound')}</p>
@@ -180,6 +289,12 @@ export function ThreadDetail() {
       </div>
     )
   }
+
+  if (!thread) {
+    return <ThreadShellSkeleton />
+  }
+
+  const skeletonCount = Math.min(3, Math.max(1, thread.replyCount || 2))
 
   const canDelete = currentUser && (currentUser.id === thread.authorId || isMod)
   const goPage = (n: number) => setParams(n <= 1 ? {} : { page: String(n) })
@@ -207,6 +322,7 @@ export function ThreadDetail() {
       goPage(lastPage)
     } else {
       setComments((list) => (list.some((c) => c.id === posted.id) ? list : [...list, posted]))
+      setCommentsReady(true)
     }
     toast(t('common.replyPosted'))
   }
@@ -223,17 +339,6 @@ export function ThreadDetail() {
   return (
     <div className="max-w-[1100px] mx-auto space-y-3">
       <DocumentTitle title={`${thread.title} — MCW Forum`} description={thread.content.slice(0, 160)} />
-      <script type="application/ld+json">
-        {JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'DiscussionForumPosting',
-          headline: thread.title,
-          datePublished: thread.createdAt,
-          dateModified: thread.updatedAt,
-          author: author ? { '@type': 'Person', name: author.displayName } : undefined,
-          url: typeof window !== 'undefined' ? window.location.href : undefined,
-        })}
-      </script>
       <div className="text-[12px] prose-muted">
         <Link to="/communities" className="gold-text hover:underline">{t('communities.forumList')}</Link>
         {forum && (
@@ -293,7 +398,7 @@ export function ThreadDetail() {
         const likeN = post.likeCount
         return (
           <article key={post.id} className="xf-post">
-            <MemberCard user={user} />
+            <MemberCard user={user ?? undefined} />
             <div className="xf-body">
               <div className="flex items-center justify-between gap-2 text-[12px] prose-muted border-b border-[var(--xf-line-soft)] pb-2 mb-3">
                 <span>{forumTime(post.createdAt, lang)}</span>
@@ -305,13 +410,15 @@ export function ThreadDetail() {
                 </div>
               </div>
               <PostBodyView body={post.body} />
-              {isOp && number === 1 && (
-                <AdRotator
-                  slot="thread"
-                  variant="inline"
-                  className="mt-4 border border-[var(--xf-line-soft)]"
-                  heightClass="h-28 max-h-28"
-                />
+              {isOp && number === 1 && adReady && (
+                <Suspense fallback={null}>
+                  <AdRotator
+                    slot="thread"
+                    variant="inline"
+                    className="mt-4 border border-[var(--xf-line-soft)]"
+                    heightClass="h-28 max-h-28"
+                  />
+                </Suspense>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] prose-muted">
                 <button
@@ -401,6 +508,11 @@ export function ThreadDetail() {
         )
       })}
 
+      {!commentsReady &&
+        Array.from({ length: skeletonCount }).map((_, i) => (
+          <PostSkeleton key={`sk-${i}`} />
+        ))}
+
       <section className="xf-form">
         <div className="xf-form-head">{t('thread.replyTo')}</div>
         {currentUser ? (
@@ -413,14 +525,22 @@ export function ThreadDetail() {
                 </button>
               </p>
             )}
-            <PostComposer
-              value={replyBody}
-              onChange={setReplyBody}
-              onBusyChange={setUploading}
-              placeholder={quoteParent ? t('thread.writeQuotedReply') : t('thread.writeReply')}
-            />
+            {composerReady ? (
+              <Suspense
+                fallback={<div className="p-4 text-sm prose-muted">{t('common.loading')}</div>}
+              >
+                <PostComposer
+                  value={replyBody}
+                  onChange={setReplyBody}
+                  onBusyChange={setUploading}
+                  placeholder={quoteParent ? t('thread.writeQuotedReply') : t('thread.writeReply')}
+                />
+              </Suspense>
+            ) : (
+              <div className="p-4 text-sm prose-muted">{t('common.loading')}</div>
+            )}
             <div className="xf-form-actions">
-              <button type="submit" className="btn-post" disabled={uploading}>
+              <button type="submit" className="btn-post" disabled={uploading || !composerReady}>
                 {uploading ? t('thread.uploading') : t('thread.postReply')}
               </button>
             </div>

@@ -60,12 +60,16 @@ export function ForumMedia({
   const [open, setOpen] = useState(false)
   if (!url || !src) return null
   const kind = inferMediaKind(url, type)
-  if (kind === 'video') return <video src={src} controls className={className} />
-  if (!lightbox) return <img src={src} alt="" className={className} />
+  if (kind === 'video') {
+    return <video src={src} controls preload="none" className={className} />
+  }
+  if (!lightbox) {
+    return <img src={src} alt="" className={className} loading="lazy" decoding="async" />
+  }
   return (
     <>
       <button type="button" className="block p-0 bg-transparent border-0 cursor-zoom-in max-w-full" onClick={() => setOpen(true)} aria-label="View image">
-        <img src={src} alt="" className={className} />
+        <img src={src} alt="" className={className} loading="lazy" decoding="async" />
       </button>
       {open && <ImageLightbox src={src} onClose={() => setOpen(false)} />}
     </>
@@ -84,5 +88,5 @@ export function ForumImage({
   const src = useMediaSrc(url)
   const finalSrc = src || fallback
   if (!finalSrc) return null
-  return <img src={finalSrc} alt="" className={className} />
+  return <img src={finalSrc} alt="" className={className} loading="lazy" decoding="async" />
 }

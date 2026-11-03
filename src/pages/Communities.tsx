@@ -8,6 +8,7 @@ import { useForum } from '../context/ForumContext'
 import { localizeCategoryDesc, localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
+import { prefetchCommunity } from '../lib/communityPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
 
@@ -70,7 +71,13 @@ export function Communities() {
               <article className="forum-row">
                 <MessageCircle size={18} className="text-[#c45c4a] shrink-0" />
                 <div className="min-w-0">
-                  <Link to={`/communities/${category.slug}`} className="text-[14px] font-semibold gold-text hover:underline">
+                  <Link
+                    to={`/communities/${category.slug}`}
+                    className="text-[14px] font-semibold gold-text hover:underline"
+                    onMouseEnter={() => prefetchCommunity(category.slug, { lang, limit: 20 })}
+                    onFocus={() => prefetchCommunity(category.slug, { lang, limit: 20 })}
+                    onPointerDown={() => prefetchCommunity(category.slug, { lang, limit: 20 })}
+                  >
                     {localizeCategoryName(category.slug, category.name, lang)}
                   </Link>
                   <p className="text-[12px] prose-muted mt-0.5 leading-snug">
@@ -79,7 +86,14 @@ export function Communities() {
                   {children.length > 0 && (
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                       {children.slice(0, 2).map((child) => (
-                        <Link key={child.id} to={`/communities/${child.slug}`} className="text-[12px] gold-text hover:underline">
+                        <Link
+                          key={child.id}
+                          to={`/communities/${child.slug}`}
+                          className="text-[12px] gold-text hover:underline"
+                          onMouseEnter={() => prefetchCommunity(child.slug, { lang, limit: 20 })}
+                          onFocus={() => prefetchCommunity(child.slug, { lang, limit: 20 })}
+                          onPointerDown={() => prefetchCommunity(child.slug, { lang, limit: 20 })}
+                        >
                           {localizeCategoryName(child.slug, child.name, lang)}
                         </Link>
                       ))}
@@ -124,7 +138,14 @@ export function Communities() {
               {expanded && children.length > 2 && (
                 <div className="px-12 pb-3 flex flex-wrap gap-x-4 gap-y-1">
                   {children.slice(2).map((child) => (
-                    <Link key={child.id} to={`/communities/${child.slug}`} className="text-[12px] gold-text hover:underline">
+                    <Link
+                      key={child.id}
+                      to={`/communities/${child.slug}`}
+                      className="text-[12px] gold-text hover:underline"
+                      onMouseEnter={() => prefetchCommunity(child.slug, { lang, limit: 20 })}
+                      onFocus={() => prefetchCommunity(child.slug, { lang, limit: 20 })}
+                      onPointerDown={() => prefetchCommunity(child.slug, { lang, limit: 20 })}
+                    >
                       {localizeCategoryName(child.slug, child.name, lang)}
                     </Link>
                   ))}

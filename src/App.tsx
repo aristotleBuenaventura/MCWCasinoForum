@@ -1,22 +1,36 @@
+import { lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 import { ToastProvider } from './components/Toast'
 import { ForumProvider } from './context/ForumContext'
 import { LocaleProvider, detectLangFromPath, type Lang } from './i18n/locale'
-import { Admin } from './pages/Admin'
-import { Communities } from './pages/Communities'
-import { CommunityDetail } from './pages/CommunityDetail'
-import { CreateThread } from './pages/CreateThread'
-import { Home } from './pages/Home'
-import { Login } from './pages/Login'
-import { Members } from './pages/Members'
-import { Notifications } from './pages/Notifications'
-import { Profile } from './pages/Profile'
-import { Register } from './pages/Register'
-import { ResetPassword } from './pages/ResetPassword'
-import { Search } from './pages/Search'
-import { ThreadDetail } from './pages/ThreadDetail'
-import { VerifyEmail } from './pages/VerifyEmail'
+
+const Home = lazy(() => import('./pages/Home').then((m) => ({ default: m.Home })))
+const Communities = lazy(() => import('./pages/Communities').then((m) => ({ default: m.Communities })))
+const CommunityDetail = lazy(() =>
+  import('./pages/CommunityDetail').then((m) => ({ default: m.CommunityDetail })),
+)
+const ThreadDetail = lazy(() =>
+  import('./pages/ThreadDetail').then((m) => ({ default: m.ThreadDetail })),
+)
+const Members = lazy(() => import('./pages/Members').then((m) => ({ default: m.Members })))
+const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })))
+const Search = lazy(() => import('./pages/Search').then((m) => ({ default: m.Search })))
+const Notifications = lazy(() =>
+  import('./pages/Notifications').then((m) => ({ default: m.Notifications })),
+)
+const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
+const Register = lazy(() => import('./pages/Register').then((m) => ({ default: m.Register })))
+const ResetPassword = lazy(() =>
+  import('./pages/ResetPassword').then((m) => ({ default: m.ResetPassword })),
+)
+const VerifyEmail = lazy(() =>
+  import('./pages/VerifyEmail').then((m) => ({ default: m.VerifyEmail })),
+)
+const CreateThread = lazy(() =>
+  import('./pages/CreateThread').then((m) => ({ default: m.CreateThread })),
+)
+const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })))
 
 function AppRoutes() {
   return (
@@ -49,7 +63,10 @@ function AppRoutes() {
 function LocalizedApp({ lang }: { lang: Lang }) {
   const basename = lang === 'bn' ? '/bn' : undefined
   return (
-    <BrowserRouter key={lang} basename={basename}>
+    // useTransitions={false}: RR7 wraps nav in startTransition by default, which
+    // keeps the previous lazy page painted until the next chunk resolves — feels
+    // like clicks do nothing. Eager commit so Suspense fallback can show.
+    <BrowserRouter key={lang} basename={basename} useTransitions={false}>
       <LocaleProvider lang={lang}>
         <ForumProvider>
           <ToastProvider>

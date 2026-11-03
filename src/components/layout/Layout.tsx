@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Suspense, useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useLocale } from '../../i18n/locale'
 import { LoginModal } from '../LoginModal'
+import { RouteFallback } from '../RouteFallback'
 import { Footer } from './Footer'
 import { Header } from './Header'
 import { LeftRail } from './LeftRail'
@@ -9,10 +10,19 @@ import { RightRail } from './RightRail'
 
 export function Layout({ rails = 'none' }: { rails?: 'none' | 'left' | 'both' }) {
   const { lang } = useLocale()
+  const location = useLocation()
 
   useEffect(() => {
     document.documentElement.lang = lang === 'bn' ? 'bn' : 'en'
   }, [lang])
+
+  // Key by pathname so each route gets a fresh Suspense boundary and the
+  // fallback can paint instead of freezing on the previous page.
+  const page = (
+    <Suspense key={location.pathname} fallback={<RouteFallback />}>
+      <Outlet />
+    </Suspense>
+  )
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -22,17 +32,17 @@ export function Layout({ rails = 'none' }: { rails?: 'none' | 'left' | 'both' })
         {rails === 'both' && (
           <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_300px] gap-3">
             <div className="hidden lg:block min-w-0"><LeftRail /></div>
-            <div className="min-w-0"><Outlet /></div>
+            <div className="min-w-0">{page}</div>
             <div className="hidden lg:block min-w-0"><RightRail /></div>
           </div>
         )}
         {rails === 'left' && (
           <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-3">
             <div className="hidden lg:block min-w-0"><LeftRail /></div>
-            <div className="min-w-0"><Outlet /></div>
+            <div className="min-w-0">{page}</div>
           </div>
         )}
-        {rails === 'none' && <Outlet />}
+        {rails === 'none' && page}
       </main>
       <Footer />
     </div>

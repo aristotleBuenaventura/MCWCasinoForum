@@ -32,7 +32,7 @@ export function AdRotator({
   const wrap = variant === 'inline' ? 'overflow-hidden block' : 'forum-card overflow-hidden block'
 
   const inner = (
-    <img src={src} alt={title} className={`w-full ${heightClass} object-cover`} />
+    <img src={src} alt={title} className={`w-full ${heightClass} object-cover`} loading="lazy" decoding="async" />
   )
 
   if (href) {

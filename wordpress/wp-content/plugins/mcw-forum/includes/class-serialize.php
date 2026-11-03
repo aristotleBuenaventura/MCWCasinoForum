@@ -32,7 +32,10 @@ class MCW_Forum_Serialize
         ];
     }
 
-    public static function map_thread(WP_Post $post, string $lang = 'en'): array
+    /**
+     * @param bool $light List/feed mode: title + short content, no full body blocks.
+     */
+    public static function map_thread(WP_Post $post, string $lang = 'en', bool $light = false): array
     {
         $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $terms = wp_get_post_terms($post->ID, 'mcw_forum');
@@ -41,21 +44,30 @@ class MCW_Forum_Serialize
             $forum_id = 'cat_' . $terms[0]->term_id;
         }
 
-        if ($lang !== 'en') {
-            MCW_Forum_Translate::ensure_thread((int) $post->ID);
-        }
-        $title = MCW_Forum_Translate::localized_title((int) $post->ID, $lang);
-        $body = MCW_Forum_Translate::localized_body((int) $post->ID, $lang);
-        if (!$body) {
-            $raw = get_post_meta((int) $post->ID, 'mcw_body', true);
-            $body = is_array($raw) ? $raw : [['type' => 'text', 'text' => wp_strip_all_tags($post->post_content)]];
-        }
-        $content = MCW_Forum_Translate::localized_content((int) $post->ID, $lang);
-        if ($content === '' || MCW_Forum_Translate::is_stub_body([['type' => 'text', 'text' => $content]])) {
-            $content = MCW_Forum_Translate::plain_from_body($body);
-        }
+        // Cache-only on read paths — never call MyMemory during page loads.
+        $title = MCW_Forum_Translate::localized_title((int) $post->ID, $lang, false);
+        $content = MCW_Forum_Translate::localized_content((int) $post->ID, $lang, false);
         if ($content === '') {
             $content = wp_strip_all_tags($post->post_content);
+        }
+
+        $body = [];
+        if (!$light) {
+            $body = MCW_Forum_Translate::localized_body((int) $post->ID, $lang, false);
+            if (!$body) {
+                $raw = get_post_meta((int) $post->ID, 'mcw_body', true);
+                $body = is_array($raw) ? $raw : [['type' => 'text', 'text' => $content]];
+            }
+            if ($content === '' || MCW_Forum_Translate::is_stub_body([['type' => 'text', 'text' => $content]])) {
+                $content = MCW_Forum_Translate::plain_from_body($body) ?: $content;
+            }
+        } else {
+            // Short excerpt for cards/lists
+            if (function_exists('mb_substr')) {
+                $content = mb_substr($content, 0, 280);
+            } else {
+                $content = substr($content, 0, 280);
+            }
         }
 
         $tags = get_post_meta($post->ID, 'mcw_tags', true);
@@ -81,14 +93,15 @@ class MCW_Forum_Serialize
     public static function map_comment(WP_Post $post, string $lang = 'en'): array
     {
         $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
-        $body = MCW_Forum_Translate::localized_body((int) $post->ID, $lang);
+        // Cache-only — never hit external translate APIs while listing comments.
+        $body = MCW_Forum_Translate::localized_body((int) $post->ID, $lang, false);
         if (!$body) {
             $raw = get_post_meta($post->ID, 'mcw_body', true);
             $body = is_array($raw) ? $raw : [['type' => 'text', 'text' => wp_strip_all_tags($post->post_content)]];
         }
-        $content = MCW_Forum_Translate::localized_content((int) $post->ID, $lang);
+        $content = MCW_Forum_Translate::localized_content((int) $post->ID, $lang, false);
         if ($content === '') {
-            $content = wp_strip_all_tags($post->post_content);
+            $content = MCW_Forum_Translate::plain_from_body($body) ?: wp_strip_all_tags($post->post_content);
         }
         $parent = get_post_meta($post->ID, 'mcw_parent_id', true);
         $source = (string) get_post_meta($post->ID, 'mcw_source_lang', true);
@@ -112,9 +125,10 @@ class MCW_Forum_Serialize
         $name = html_entity_decode($term->name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $description = html_entity_decode($term->description ?: '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         if ($lang !== 'en') {
-            $name = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'name', $name, $lang);
+            // Cache-only (React also has CATEGORY_NAME_BN fallback).
+            $name = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'name', $name, $lang, false);
             if ($description !== '') {
-                $description = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'description', $description, $lang);
+                $description = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'description', $description, $lang, false);
             }
         }
         return [

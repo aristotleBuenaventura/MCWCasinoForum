@@ -98,13 +98,26 @@ class MCW_Forum_REST
         return $args;
     }
 
+    private static ?bool $has_icl_table = null;
+
+    private static function has_icl_table(): bool
+    {
+        if (self::$has_icl_table !== null) {
+            return self::$has_icl_table;
+        }
+        global $wpdb;
+        $table = $wpdb->prefix . 'icl_translations';
+        self::$has_icl_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+        return self::$has_icl_table;
+    }
+
     /** @return array<string,string> lang => post id */
     private static function thread_translations(int $post_id): array
     {
         $map = ['en' => (string) $post_id];
         global $wpdb;
         $table = $wpdb->prefix . 'icl_translations';
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+        if (!self::has_icl_table()) {
             return $map;
         }
 
@@ -542,19 +555,17 @@ class MCW_Forum_REST
         $viewer = MCW_Forum_Auth::current_wp_user();
         $viewer_id = $viewer ? $viewer->ID : null;
         $lang = self::request_lang($request) ?: 'en';
+        // sections=feed|extras|all — split so first paint is fast
+        $sections = sanitize_key((string) ($request->get_param('sections') ?: 'all'));
+        if (!in_array($sections, ['feed', 'extras', 'all'], true)) {
+            $sections = 'all';
+        }
 
         $base = [
             'post_type' => 'mcw_thread',
             'post_status' => 'publish',
             'suppress_filters' => false,
         ];
-
-        $feed_q = new WP_Query(self::with_lang_query(array_merge($base, [
-            'posts_per_page' => 20,
-            'orderby' => 'date',
-            'order' => 'DESC',
-        ]), $lang));
-        $threads = MCW_Forum_Forum::decorate_threads($feed_q->posts, $viewer_id, $lang);
 
         $by_slug = static function (string $slug, int $limit) use ($base, $lang, $viewer_id): array {
             $term = get_term_by('slug', $slug, 'mcw_forum');
@@ -571,28 +582,38 @@ class MCW_Forum_REST
                 ]];
             }
             $q = new WP_Query(self::with_lang_query($args, $lang));
-            return MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id, $lang);
+            return MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id, $lang, true);
         };
 
-        $reviews = $by_slug('casino-reviews', 3);
-        $guides = $by_slug('guides', 3);
-        $wins = $by_slug('big-wins', 6);
-
-        return new WP_REST_Response([
+        $payload = [
             'ok' => true,
             'tab' => $tab,
             'lang' => $lang,
-            'feed' => [
-                'page' => 1,
-                'limit' => 20,
-                'total' => (int) $feed_q->found_posts,
-                'threads' => $threads,
-            ],
-            'reviews' => $reviews,
-            'guides' => $guides,
-            'wins' => $wins,
+            'sections' => $sections,
             'weekly' => [],
-        ]);
+        ];
+
+        if ($sections === 'feed' || $sections === 'all') {
+            $feed_q = new WP_Query(self::with_lang_query(array_merge($base, [
+                'posts_per_page' => 15,
+                'orderby' => 'date',
+                'order' => 'DESC',
+            ]), $lang));
+            $payload['feed'] = [
+                'page' => 1,
+                'limit' => 15,
+                'total' => (int) $feed_q->found_posts,
+                'threads' => MCW_Forum_Forum::decorate_threads($feed_q->posts, $viewer_id, $lang, true),
+            ];
+        }
+
+        if ($sections === 'extras' || $sections === 'all') {
+            $payload['reviews'] = $by_slug('casino-reviews', 3);
+            $payload['guides'] = $by_slug('guides', 3);
+            $payload['wins'] = $by_slug('big-wins', 6);
+        }
+
+        return new WP_REST_Response($payload);
     }
 
     public static function list_threads(WP_REST_Request $request): WP_REST_Response
@@ -626,7 +647,7 @@ class MCW_Forum_REST
             'page' => $page,
             'limit' => $limit,
             'total' => (int) $q->found_posts,
-            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null, $lang),
+            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null, $lang, true),
         ]);
     }
 
@@ -644,15 +665,113 @@ class MCW_Forum_REST
             return new WP_REST_Response(['ok' => false, 'error' => 'Thread not found.'], 404);
         }
         $viewer = MCW_Forum_Auth::current_wp_user();
-        $threads = MCW_Forum_Forum::decorate_threads([$post], $viewer ? $viewer->ID : null, $lang);
+        // Full body for detail view
+        $threads = MCW_Forum_Forum::decorate_threads([$post], $viewer ? $viewer->ID : null, $lang, false);
         $translations = self::thread_translations((int) $post->ID);
         $threads[0]['translations'] = $translations;
-        return new WP_REST_Response([
+
+        $payload = [
             'ok' => true,
             'lang' => $lang,
             'thread' => $threads[0],
             'translations' => $translations,
+        ];
+
+        // Bundle first-page comments so the SPA pays WP boot cost once.
+        $include = $request->get_param('include_comments');
+        $include_on = $include === null || $include === '' || $include === '1' || $include === 1 || $include === true;
+        if ($include_on) {
+            $page = max(1, (int) ($request->get_param('page') ?: 1));
+            $limit = min(50, max(1, (int) ($request->get_param('limit') ?: 20)));
+            $comments = self::load_thread_comments((int) $post->ID, $page, $limit, $lang, $viewer ? (int) $viewer->ID : null);
+            $payload['comments'] = $comments['comments'];
+            $payload['commentTotal'] = $comments['total'];
+            $payload['commentPage'] = $page;
+            $payload['commentLimit'] = $limit;
+        }
+
+        return new WP_REST_Response($payload);
+    }
+
+    /**
+     * Fast comments loader with batched likes + authors.
+     *
+     * @return array{comments: array<int,array>, total: int}
+     */
+    private static function load_thread_comments(int $thread_id, int $page, int $limit, string $lang, ?int $viewer_id): array
+    {
+        global $wpdb;
+        $group_ids = self::thread_group_ids($thread_id);
+        $q = new WP_Query([
+            'post_type' => 'mcw_reply',
+            'post_status' => 'publish',
+            'posts_per_page' => $limit,
+            'paged' => $page,
+            'orderby' => 'date',
+            'order' => 'ASC',
+            'suppress_filters' => true,
+            'no_found_rows' => false,
+            'update_post_meta_cache' => true,
+            'update_post_term_cache' => false,
+            'meta_query' => [[
+                'key' => 'mcw_thread_id',
+                'value' => $group_ids,
+                'compare' => 'IN',
+            ]],
         ]);
+
+        $posts = $q->posts;
+        if (!$posts) {
+            return ['comments' => [], 'total' => (int) $q->found_posts];
+        }
+
+        $ids = array_map(static fn ($p) => (string) $p->ID, $posts);
+        $placeholders = implode(',', array_fill(0, count($ids), '%s'));
+
+        $like_map = array_fill_keys($ids, 0);
+        $like_rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT target_id, COUNT(*) AS cnt
+             FROM {$wpdb->prefix}mcw_likes
+             WHERE target_type = 'comment' AND target_id IN ($placeholders)
+             GROUP BY target_id",
+            ...$ids
+        ), ARRAY_A) ?: [];
+        foreach ($like_rows as $row) {
+            $like_map[(string) $row['target_id']] = (int) $row['cnt'];
+        }
+
+        $liked_set = [];
+        if ($viewer_id) {
+            $liked_rows = $wpdb->get_col($wpdb->prepare(
+                "SELECT target_id FROM {$wpdb->prefix}mcw_likes
+                 WHERE user_id = %d AND target_type = 'comment' AND target_id IN ($placeholders)",
+                $viewer_id,
+                ...$ids
+            )) ?: [];
+            foreach ($liked_rows as $tid) {
+                $liked_set[(string) $tid] = true;
+            }
+        }
+
+        $author_ids = array_values(array_unique(array_map(static fn ($p) => (int) $p->post_author, $posts)));
+        $authors = [];
+        if ($author_ids) {
+            foreach (get_users(['include' => $author_ids]) as $u) {
+                $authors[(int) $u->ID] = MCW_Forum_Serialize::public_user($u);
+            }
+        }
+
+        $comments = [];
+        foreach ($posts as $post) {
+            $mapped = MCW_Forum_Serialize::map_comment($post, $lang);
+            $sid = (string) $post->ID;
+            $mapped['author'] = $authors[(int) $post->post_author] ?? null;
+            $mapped['likeCount'] = $like_map[$sid] ?? 0;
+            $mapped['liked'] = isset($liked_set[$sid]);
+            $comments[] = $mapped;
+        }
+
+        return ['comments' => $comments, 'total' => (int) $q->found_posts];
     }
 
     public static function create_thread(WP_REST_Request $request): WP_REST_Response
@@ -698,7 +817,7 @@ class MCW_Forum_REST
         self::set_post_language((int) $id, 'mcw_thread', $lang, null, $lang === 'en' ? null : 'en');
         MCW_Forum_Translate::ensure_thread((int) $id);
         $post = get_post($id);
-        $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID, $lang);
+        $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID, $lang, false);
         $threads[0]['translations'] = self::thread_translations((int) $id);
         return new WP_REST_Response(['ok' => true, 'thread' => $threads[0]]);
     }
@@ -746,54 +865,25 @@ class MCW_Forum_REST
 
     public static function list_comments(WP_REST_Request $request): WP_REST_Response
     {
-        global $wpdb;
         $thread_id = (int) $request['id'];
-        $group_ids = self::thread_group_ids($thread_id);
         $page = max(1, (int) ($request->get_param('page') ?: 1));
         $limit = min(50, max(1, (int) ($request->get_param('limit') ?: 20)));
-        // suppress_filters: WPML must not hide replies by language — comments are shared across translations
-        $q = new WP_Query([
-            'post_type' => 'mcw_reply',
-            'post_status' => 'publish',
-            'posts_per_page' => $limit,
-            'paged' => $page,
-            'orderby' => 'date',
-            'order' => 'ASC',
-            'suppress_filters' => true,
-            'meta_query' => [[
-                'key' => 'mcw_thread_id',
-                'value' => $group_ids,
-                'compare' => 'IN',
-            ]],
-        ]);
         $viewer = MCW_Forum_Auth::current_wp_user();
         $lang = self::request_lang($request) ?: 'en';
-        $comments = [];
-        foreach ($q->posts as $post) {
-            $mapped = MCW_Forum_Serialize::map_comment($post, $lang);
-            $author = get_user_by('id', (int) $post->post_author);
-            $mapped['author'] = $author ? MCW_Forum_Serialize::public_user($author) : null;
-            $mapped['likeCount'] = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}mcw_likes WHERE target_type = 'comment' AND target_id = %s",
-                (string) $post->ID
-            ));
-            $mapped['liked'] = false;
-            if ($viewer) {
-                $mapped['liked'] = (bool) $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}mcw_likes WHERE user_id = %d AND target_type = 'comment' AND target_id = %s",
-                    $viewer->ID,
-                    (string) $post->ID
-                ));
-            }
-            $comments[] = $mapped;
-        }
+        $payload = self::load_thread_comments(
+            $thread_id,
+            $page,
+            $limit,
+            $lang,
+            $viewer ? (int) $viewer->ID : null
+        );
         return new WP_REST_Response([
             'ok' => true,
             'page' => $page,
             'limit' => $limit,
-            'total' => (int) $q->found_posts,
+            'total' => $payload['total'],
             'lang' => $lang,
-            'comments' => $comments,
+            'comments' => $payload['comments'],
         ]);
     }
 
@@ -1025,7 +1115,7 @@ class MCW_Forum_REST
         $viewer = MCW_Forum_Auth::current_wp_user();
         return new WP_REST_Response([
             'ok' => true,
-            'threads' => MCW_Forum_Forum::decorate_threads($query->posts, $viewer ? $viewer->ID : null, $lang),
+            'threads' => MCW_Forum_Forum::decorate_threads($query->posts, $viewer ? $viewer->ID : null, $lang, true),
             'users' => [],
         ]);
     }
@@ -1067,7 +1157,7 @@ class MCW_Forum_REST
         return new WP_REST_Response([
             'ok' => true,
             'user' => MCW_Forum_Serialize::public_user($user, $viewer && $viewer->ID === $user->ID),
-            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null, $lang),
+            'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer ? $viewer->ID : null, $lang, true),
             'comments' => [],
         ]);
     }

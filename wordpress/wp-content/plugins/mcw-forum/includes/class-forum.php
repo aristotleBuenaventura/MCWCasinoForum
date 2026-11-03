@@ -8,32 +8,41 @@ class MCW_Forum_Forum
 {
     public static function load_categories(string $lang = 'en'): array
     {
+        global $wpdb;
         $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $terms = get_terms([
             'taxonomy' => 'mcw_forum',
             'hide_empty' => false,
+            'update_term_meta_cache' => true,
         ]);
-        if (is_wp_error($terms)) {
+        if (is_wp_error($terms) || !$terms) {
             return [];
         }
+
+        // One query for all forum thread counts (include_children = false).
+        $counts_raw = $wpdb->get_results(
+            "SELECT tt.term_id, COUNT(DISTINCT p.ID) AS cnt
+             FROM {$wpdb->term_taxonomy} tt
+             LEFT JOIN {$wpdb->term_relationships} tr ON tr.term_taxonomy_id = tt.term_taxonomy_id
+             LEFT JOIN {$wpdb->posts} p
+               ON p.ID = tr.object_id
+              AND p.post_type = 'mcw_thread'
+              AND p.post_status = 'publish'
+             WHERE tt.taxonomy = 'mcw_forum'
+             GROUP BY tt.term_id",
+            ARRAY_A
+        );
+        $count_map = [];
+        foreach ($counts_raw as $row) {
+            $count_map[(int) $row['term_id']] = (int) $row['cnt'];
+        }
+
         $out = [];
         foreach ($terms as $term) {
-            $q = new WP_Query([
-                'post_type' => 'mcw_thread',
-                'post_status' => 'publish',
-                'posts_per_page' => 1,
-                'fields' => 'ids',
-                'tax_query' => [[
-                    'taxonomy' => 'mcw_forum',
-                    'field' => 'term_id',
-                    'terms' => [$term->term_id],
-                    'include_children' => false,
-                ]],
-            ]);
-            $thread_count = (int) $q->found_posts;
+            $n = $count_map[(int) $term->term_id] ?? 0;
             $out[] = MCW_Forum_Serialize::map_category($term, [
-                'threadCount' => $thread_count,
-                'postCount' => $thread_count,
+                'threadCount' => $n,
+                'postCount' => $n,
             ], $lang);
         }
         usort($out, static fn ($a, $b) => ($a['order'] <=> $b['order']) ?: strcmp($a['name'], $b['name']));
@@ -74,46 +83,102 @@ class MCW_Forum_Forum
         ];
     }
 
-    public static function decorate_threads(array $posts, ?int $viewer_id, string $lang = 'en'): array
+    /**
+     * @param WP_Post[] $posts
+     * @param bool $light Skip full body blocks (feeds / lists).
+     */
+    public static function decorate_threads(array $posts, ?int $viewer_id, string $lang = 'en', bool $light = true): array
     {
         global $wpdb;
         $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
-        $threads = [];
+        $valid = [];
         foreach ($posts as $post) {
-            if (!$post instanceof WP_Post) {
-                continue;
+            if ($post instanceof WP_Post) {
+                $valid[] = $post;
             }
-            $mapped = MCW_Forum_Serialize::map_thread($post, $lang);
-            $author = get_user_by('id', (int) $post->post_author);
-            $mapped['author'] = $author ? MCW_Forum_Serialize::public_user($author) : null;
-            $like_count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}mcw_likes WHERE target_type = 'thread' AND target_id = %s",
-                (string) $post->ID
+        }
+        if (!$valid) {
+            return [];
+        }
+
+        $ids = array_map(static fn (WP_Post $p) => (string) $p->ID, $valid);
+        $id_ints = array_map('intval', $ids);
+        $placeholders = implode(',', array_fill(0, count($ids), '%s'));
+        $int_placeholders = implode(',', array_fill(0, count($id_ints), '%d'));
+
+        // Batch like counts
+        $like_map = array_fill_keys($ids, 0);
+        $like_rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT target_id, COUNT(*) AS cnt
+             FROM {$wpdb->prefix}mcw_likes
+             WHERE target_type = 'thread' AND target_id IN ($placeholders)
+             GROUP BY target_id",
+            ...$ids
+        ), ARRAY_A);
+        foreach ($like_rows as $row) {
+            $like_map[(string) $row['target_id']] = (int) $row['cnt'];
+        }
+
+        // Batch comment counts
+        $comment_map = array_fill_keys($ids, 0);
+        $comment_rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT m.meta_value AS thread_id, COUNT(*) AS cnt
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = 'mcw_thread_id'
+             WHERE p.post_type = 'mcw_reply' AND p.post_status = 'publish'
+               AND m.meta_value IN ($placeholders)
+             GROUP BY m.meta_value",
+            ...$ids
+        ), ARRAY_A);
+        foreach ($comment_rows as $row) {
+            $comment_map[(string) $row['thread_id']] = (int) $row['cnt'];
+        }
+
+        $liked_set = [];
+        $bookmark_set = [];
+        if ($viewer_id) {
+            $liked_rows = $wpdb->get_col($wpdb->prepare(
+                "SELECT target_id FROM {$wpdb->prefix}mcw_likes
+                 WHERE user_id = %d AND target_type = 'thread' AND target_id IN ($placeholders)",
+                $viewer_id,
+                ...$ids
             ));
-            $comment_count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->posts} p
-                 INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = 'mcw_thread_id' AND m.meta_value = %s
-                 WHERE p.post_type = 'mcw_reply' AND p.post_status = 'publish'",
-                (string) $post->ID
-            ));
-            $liked = false;
-            $bookmarked = false;
-            if ($viewer_id) {
-                $liked = (bool) $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}mcw_likes WHERE user_id = %d AND target_type = 'thread' AND target_id = %s",
-                    $viewer_id,
-                    (string) $post->ID
-                ));
-                $bookmarked = (bool) $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}mcw_bookmarks WHERE user_id = %d AND thread_id = %d",
-                    $viewer_id,
-                    $post->ID
-                ));
+            foreach ($liked_rows as $tid) {
+                $liked_set[(string) $tid] = true;
             }
-            $mapped['likeCount'] = $like_count;
-            $mapped['commentCount'] = $comment_count;
-            $mapped['liked'] = $liked;
-            $mapped['bookmarked'] = $bookmarked;
+            $bookmark_rows = $wpdb->get_col($wpdb->prepare(
+                "SELECT thread_id FROM {$wpdb->prefix}mcw_bookmarks
+                 WHERE user_id = %d AND thread_id IN ($int_placeholders)",
+                $viewer_id,
+                ...$id_ints
+            ));
+            foreach ($bookmark_rows as $tid) {
+                $bookmark_set[(string) $tid] = true;
+            }
+        }
+
+        // Batch authors
+        $author_ids = array_values(array_unique(array_map(static fn (WP_Post $p) => (int) $p->post_author, $valid)));
+        $authors = [];
+        if ($author_ids) {
+            foreach (get_users(['include' => $author_ids, 'fields' => 'all']) as $u) {
+                $authors[(int) $u->ID] = MCW_Forum_Serialize::public_user($u);
+            }
+        }
+
+        // Warm post meta cache for the batch
+        update_meta_cache('post', $id_ints);
+
+        $threads = [];
+        foreach ($valid as $post) {
+            $sid = (string) $post->ID;
+            $mapped = MCW_Forum_Serialize::map_thread($post, $lang, $light);
+            $mapped['author'] = $authors[(int) $post->post_author] ?? null;
+            $mapped['likeCount'] = $like_map[$sid] ?? 0;
+            $mapped['commentCount'] = $comment_map[$sid] ?? 0;
+            $mapped['replyCount'] = $comment_map[$sid] ?? 0;
+            $mapped['liked'] = isset($liked_set[$sid]);
+            $mapped['bookmarked'] = isset($bookmark_set[$sid]);
             $threads[] = $mapped;
         }
         return $threads;
