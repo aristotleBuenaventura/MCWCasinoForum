@@ -19,6 +19,17 @@ playwright-report
 test-results
 blob-report
 
+# WordPress: ignore core + commercial plugins; keep only our mcw-forum plugin
+wordpress/**
+!wordpress/wp-content/
+!wordpress/wp-content/plugins/
+!wordpress/wp-content/plugins/mcw-forum/
+!wordpress/wp-content/plugins/mcw-forum/**
+
+# Local WPML / installer helpers (may contain download tokens)
+wordpress/_*.php
+wordpress-latest.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
