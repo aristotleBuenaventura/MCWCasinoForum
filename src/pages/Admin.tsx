@@ -49,25 +49,36 @@ function ImageField({
   label?: string
 }) {
   return (
-    <div>
+    <div className="space-y-2">
       <label className="text-sm font-medium">{label}</label>
-      <div className="mt-1 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <MediaOrPlaceholder src={value} label="Preview" className="w-20 h-14 rounded-md shrink-0" />
-        <input
-          type="file"
-          accept="image/*,.gif"
-          className="text-xs"
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            if (!f) return
-            onChange(await pickImage(f))
-          }}
-        />
-        {value && (
-          <button type="button" className="btn btn-secondary text-xs" onClick={() => onChange('')}>
-            Clear
-          </button>
-        )}
+        <div className="flex-1 min-w-0 space-y-2">
+          <input
+            className="input w-full"
+            type="url"
+            placeholder="https://… image URL"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept="image/*,.gif"
+              className="text-xs"
+              onChange={async (e) => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                onChange(await pickImage(f))
+              }}
+            />
+            {value && (
+              <button type="button" className="btn btn-secondary text-xs" onClick={() => onChange('')}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

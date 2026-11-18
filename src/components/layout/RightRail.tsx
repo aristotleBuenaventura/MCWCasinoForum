@@ -85,7 +85,7 @@ export function RightRail() {
         </dl>
       </section>
 
-      <AdRotator slot="right-1" heightClass="h-40" />
+      <AdRotator slot="right-1" heightClass="aspect-[9/16] h-auto" />
 
       <section className="forum-card p-3">
         <div className="section-title mb-2">{t('railRight.weeklyAwards')}</div>

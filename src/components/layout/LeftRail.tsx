@@ -69,9 +69,9 @@ export function LeftRail() {
           {t('rail.viewAll')}
         </Link>
       </nav>
-      <AdRotator slot="left-1" heightClass="h-56" />
-      <AdRotator slot="left-2" heightClass="h-36" />
-      <AdRotator slot="left-3" heightClass="h-56" />
+      <AdRotator slot="left-1" heightClass="aspect-[9/16] h-auto" />
+      <AdRotator slot="left-2" heightClass="aspect-[9/16] h-auto" />
+      <AdRotator slot="left-3" heightClass="aspect-[9/16] h-auto" />
     </aside>
   )
 }
