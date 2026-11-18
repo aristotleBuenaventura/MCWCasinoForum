@@ -1,0 +1,52 @@
+<?php
+/**
+ * EXAMPLE fragment — merge into wp-config.php on staging/production.
+ * Never commit real secrets. Do not paste production passwords into git.
+ */
+
+/** CORS: must match the exact browser origin of the React SPA (scheme+host[+port]). */
+define('MCW_CORS_ORIGIN', 'https://www.example.com');
+
+/**
+ * Force Secure cookies when TLS terminates in front of PHP (load balancer)
+ * and is_ssl() would otherwise be false. Prefer fixing HTTPS detection first
+ * (HTTPS=on / X-Forwarded-Proto) then use this as belt-and-suspenders.
+ */
+define('MCW_FORCE_SECURE_COOKIES', true);
+
+/** Cloudflare Turnstile — use real secret from dashboard; never the 1x0000 test key. */
+define('MCW_TURNSTILE_SECRET', 'REPLACE_WITH_TURNSTILE_SECRET');
+/** Fail closed if secret missing/test key (recommended in production). */
+define('MCW_TURNSTILE_REQUIRED', true);
+
+/** Debug: log to file, never display to clients. */
+define('WP_DEBUG', false);
+define('WP_DEBUG_DISPLAY', false);
+define('WP_DEBUG_LOG', true); // path under wp-content; protect from HTTP
+@ini_set('display_errors', '0');
+
+/** Prefer HTTPS for admin when TLS is live. */
+define('FORCE_SSL_ADMIN', true);
+
+/**
+ * WordPress authentication salts — generate unique values at
+ * https://api.wordpress.org/secret-key/1.1/salt/
+ * (AUTH_KEY, SECURE_AUTH_KEY, LOGGED_IN_KEY, NONCE_KEY, and salts)
+ */
+
+/**
+ * Database — use dedicated least-privilege user from
+ * docs/deploy/database-least-privilege.sql.example
+ */
+// define('DB_NAME', 'mcwforum');
+// define('DB_USER', 'mcw_app');
+// define('DB_PASSWORD', 'REPLACE');
+// define('DB_HOST', 'localhost');
+
+/**
+ * If PHP sits behind a TLS-terminating proxy, ensure HTTPS detection:
+ * (only if you trust the proxy IP)
+ */
+// if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+//     $_SERVER['HTTPS'] = 'on';
+// }

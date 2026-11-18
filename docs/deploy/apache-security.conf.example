@@ -1,0 +1,101 @@
+# =============================================================================
+# MCW Casino Forum — Apache 2.4 security directives (EXAMPLE ONLY)
+# =============================================================================
+# Enable either this vhost fragment OR merge equivalent rules into the site
+# that maps DocumentRoot to `wordpress/`. Requires: mod_authz_core, mod_rewrite,
+# mod_headers, and PHP via php-fpm/proxy_fcgi OR mod_php.
+#
+# Pick nginx OR Apache for the public edge — do not assume both.
+# Do NOT enable HSTS until HTTPS is verified on the real domain.
+# =============================================================================
+
+<VirtualHost *:80>
+  ServerName api.example.com
+  DocumentRoot /var/www/mcw/wordpress
+
+  # After TLS is live, redirect:
+  # RewriteEngine On
+  # RewriteCond %{HTTPS} !=on
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  <Directory "/var/www/mcw/wordpress">
+    Options -Indexes +FollowSymLinks
+    AllowOverride FileInfo Options AuthConfig
+    Require all granted
+
+    # Deny helpers / CLI phar if reintroduced under the web root
+    <FilesMatch "(?i)^(wp-cli\.phar|_.*\.php)$">
+      Require all denied
+    </FilesMatch>
+
+    # Deny secret / backup / config leakage
+    <FilesMatch "(?i)^(\.env.*|wp-config\.php|composer\.(json|lock)|.*\.(sql|sqlite|bak|backup|old|orig|save|swp))$">
+      Require all denied
+    </FilesMatch>
+  </Directory>
+
+  # Explicit deny for wp-config even if AllowOverride changes
+  <Files "wp-config.php">
+    Require all denied
+  </Files>
+
+  # Uploads: no PHP execution, no indexes
+  <Directory "/var/www/mcw/wordpress/wp-content/uploads">
+    Options -Indexes -ExecCGI
+    AllowOverride None
+    Require all granted
+
+    <IfModule mod_php.c>
+      php_admin_flag engine off
+    </IfModule>
+    <IfModule mod_php7.c>
+      php_admin_flag engine off
+    </IfModule>
+    <IfModule mod_php8.c>
+      php_admin_flag engine off
+    </IfModule>
+
+    <FilesMatch "(?i)\.(php|phtml|php\d*|phar|pl|py|jsp|asp|aspx|sh|cgi|exe)$">
+      Require all denied
+    </FilesMatch>
+  </Directory>
+
+  # PHP-FPM (proxy_fcgi) — do not route uploads to FPM
+  <IfModule mod_proxy_fcgi.c>
+    <FilesMatch "\.php$">
+      SetHandler "proxy:unix:/run/php/php8.2-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+    ProxyPassMatch ^/wp-content/uploads/.*\.php$ !
+  </IfModule>
+
+  # Security headers
+  <IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Content-Security-Policy "frame-ancestors 'self'"
+    # Uncomment only after HTTPS works:
+    # Header always set Strict-Transport-Security "max-age=604800; includeSubDomains"
+  </IfModule>
+
+  ErrorLog ${APACHE_LOG_DIR}/mcw-wp-error.log
+  CustomLog ${APACHE_LOG_DIR}/mcw-wp-access.log combined
+</VirtualHost>
+
+# ---------------------------------------------------------------------------
+# SPA static vhost (Vite dist) — proxy /api to WordPress, not Node
+# ---------------------------------------------------------------------------
+# <VirtualHost *:80>
+#   ServerName www.example.com
+#   DocumentRoot /var/www/mcw/dist
+#   <Directory "/var/www/mcw/dist">
+#     Options -Indexes
+#     AllowOverride None
+#     Require all granted
+#     FallbackResource /index.html
+#   </Directory>
+#   ProxyPass /api/ http://127.0.0.1:8080/wp-json/mcw/v1/
+#   ProxyPassReverse /api/ http://127.0.0.1:8080/wp-json/mcw/v1/
+#   ProxyPass /uploads/ http://127.0.0.1:8080/wp-content/uploads/
+#   ProxyPassReverse /uploads/ http://127.0.0.1:8080/wp-content/uploads/
+# </VirtualHost>

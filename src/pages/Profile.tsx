@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast'
 import { useForum } from '../context/ForumContext'
 import { api } from '../lib/api'
 import { textFromBody } from '../lib/postBody'
+import { useLocale } from '../i18n/locale'
 import { avatarColor, forumTime } from '../lib/utils'
 import { uploadImage } from '../lib/uploads'
 import type { Comment, Thread, User } from '../types'
@@ -31,6 +32,7 @@ function snippet(text: string) {
 export function Profile() {
   const { username } = useParams()
   const toast = useToast()
+  const { lang } = useLocale()
   const {
     getUserByUsername,
     currentUser,
@@ -102,10 +104,10 @@ export function Profile() {
   const lastSeen = useMemo(() => {
     if (isSelf) return 'Now'
     const dates = [...threads.map((t) => t.createdAt), ...comments.map((c) => c.createdAt)]
-    if (!dates.length) return user ? forumTime(user.createdAt) : '—'
+    if (!dates.length) return user ? forumTime(user.createdAt, lang) : '—'
     dates.sort((a, b) => +new Date(b) - +new Date(a))
-    return forumTime(dates[0])
-  }, [comments, isSelf, threads, user])
+    return forumTime(dates[0], lang)
+  }, [comments, isSelf, threads, user, lang])
 
   const activity = useMemo(() => {
     if (!user) return []
@@ -301,7 +303,7 @@ export function Profile() {
             <dl className="xf-profile-stats">
               <div>
                 <dt>Joined</dt>
-                <dd>{forumTime(user.createdAt)}</dd>
+                <dd>{forumTime(user.createdAt, lang)}</dd>
               </div>
               <div>
                 <dt>Messages</dt>
@@ -370,7 +372,7 @@ export function Profile() {
                   </p>
                   {item.excerpt && <p className="xf-activity-excerpt">{item.excerpt}</p>}
                 </div>
-                <time className="xf-activity-time">{forumTime(item.createdAt)}</time>
+                <time className="xf-activity-time">{forumTime(item.createdAt, lang)}</time>
               </article>
             ))}
           </div>
@@ -402,7 +404,7 @@ export function Profile() {
                       Replies: {replies} · Views: {t.views}
                     </div>
                   </div>
-                  <time className="xf-activity-time">{forumTime(t.createdAt)}</time>
+                  <time className="xf-activity-time">{forumTime(t.createdAt, lang)}</time>
                 </article>
               )
             })}

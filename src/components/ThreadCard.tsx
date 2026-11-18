@@ -1,6 +1,7 @@
 import { Heart, MessageCircle, Share2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useForum } from '../context/ForumContext'
+import { useLocale } from '../i18n/locale'
 import { timeAgo } from '../lib/utils'
 import type { Thread } from '../types'
 import { Avatar } from './Avatar'
@@ -10,6 +11,7 @@ import { useToast } from './Toast'
 
 export function ThreadCard({ thread }: { thread: Thread }) {
   const { getUser, state, likeCount, isLiked, toggleLike, currentUser } = useForum()
+  const { t, lang } = useLocale()
   const toast = useToast()
   const author = getUser(thread.authorId)
   const replies = state.comments.filter((c) => c.threadId === thread.id).length
@@ -17,10 +19,11 @@ export function ThreadCard({ thread }: { thread: Thread }) {
   const liked = isLiked('thread', thread.id)
 
   const share = async () => {
-    const url = `${window.location.origin}/thread/${thread.id}`
+    const path = lang === 'bn' ? `/bn/thread/${thread.id}` : `/thread/${thread.id}`
+    const url = `${window.location.origin}${path}`
     try {
       await navigator.clipboard.writeText(url)
-      toast('Link copied')
+      toast(t('common.linkCopied'))
     } catch {
       toast(url)
     }
@@ -33,7 +36,7 @@ export function ThreadCard({ thread }: { thread: Thread }) {
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
           <Username user={thread.author || author} />
           <span className="prose-muted">@{author?.username || thread.author?.username}</span>
-          <span className="prose-muted">· {timeAgo(thread.createdAt)}</span>
+          <span className="prose-muted">· {timeAgo(thread.createdAt, lang)}</span>
         </div>
         <Link to={`/thread/${thread.id}`} className="block mt-1">
           <h3 className="font-semibold text-[1.05rem] text-[var(--color-gold)] hover:underline">
@@ -56,7 +59,7 @@ export function ThreadCard({ thread }: { thread: Thread }) {
             className={`inline-flex items-center gap-1 hover:text-[var(--color-danger)] ${liked ? 'text-[var(--color-danger)]' : ''}`}
             onClick={() => {
               if (!currentUser) {
-                toast('Log in to like posts')
+                toast(t('thread.loginToLikePosts'))
                 return
               }
               toggleLike('thread', thread.id)
@@ -68,7 +71,7 @@ export function ThreadCard({ thread }: { thread: Thread }) {
             <MessageCircle size={15} /> {replies}
           </Link>
           <button type="button" className="inline-flex items-center gap-1 hover:text-[var(--color-gold)]" onClick={share}>
-            <Share2 size={15} /> Share
+            <Share2 size={15} /> {t('common.share')}
           </button>
         </div>
       </div>

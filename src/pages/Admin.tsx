@@ -8,6 +8,8 @@ import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
 import { api } from '../lib/api'
 import { uploadImage } from '../lib/uploads'
+import { GameCatalogPicker } from '../components/GameCatalogPicker'
+import { ProviderCatalogPicker } from '../components/ProviderCatalogPicker'
 import { Username } from '../components/Username'
 import { RankBadges } from '../components/RankBadges'
 import {
@@ -49,25 +51,36 @@ function ImageField({
   label?: string
 }) {
   return (
-    <div>
+    <div className="space-y-2">
       <label className="text-sm font-medium">{label}</label>
-      <div className="mt-1 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <MediaOrPlaceholder src={value} label="Preview" className="w-20 h-14 rounded-md shrink-0" />
-        <input
-          type="file"
-          accept="image/*,.gif"
-          className="text-xs"
-          onChange={async (e) => {
-            const f = e.target.files?.[0]
-            if (!f) return
-            onChange(await pickImage(f))
-          }}
-        />
-        {value && (
-          <button type="button" className="btn btn-secondary text-xs" onClick={() => onChange('')}>
-            Clear
-          </button>
-        )}
+        <div className="flex-1 min-w-0 space-y-2">
+          <input
+            className="input w-full"
+            type="text"
+            placeholder="/game-logos/… or https://…"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept="image/*,.gif"
+              className="text-xs"
+              onChange={async (e) => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                onChange(await pickImage(f))
+              }}
+            />
+            {value && (
+              <button type="button" className="btn btn-secondary text-xs" onClick={() => onChange('')}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -86,6 +99,7 @@ export function Admin() {
     deleteTrendingGame,
     saveProvider,
     deleteProvider,
+    toggleProviderHomeTop,
     toggleFeatured,
     saveCategory,
     deleteCategory,
@@ -105,7 +119,16 @@ export function Admin() {
 
   const [adForm, setAdForm] = useState({ id: '', slot: 'left-1' as AdSlot, title: '', url: '', imageUrl: '', order: 1 })
   const [gameForm, setGameForm] = useState({ id: '', title: '', subtitle: '', url: '', imageUrl: '', order: 1 })
-  const [provForm, setProvForm] = useState({ id: '', name: '', url: '', imageUrl: '', rating: 4.5, order: 1 })
+  const [provForm, setProvForm] = useState({
+    id: '',
+    name: '',
+    url: '',
+    imageUrl: '',
+    rating: 4.5,
+    order: 1,
+    homeTop: false,
+  })
+  const homeTopCount = state.providers.filter((p) => p.homeTop).length
   const [catForm, setCatForm] = useState({
     id: '',
     name: '',
@@ -198,8 +221,9 @@ export function Admin() {
       imageUrl: provForm.imageUrl,
       rating: Number(provForm.rating) || 0,
       order: Number(provForm.order) || 1,
+      homeTop: provForm.homeTop,
     })
-    setProvForm({ id: '', name: '', url: '', imageUrl: '', rating: 4.5, order: 1 })
+    setProvForm({ id: '', name: '', url: '', imageUrl: '', rating: 4.5, order: 1, homeTop: false })
     toast('Provider saved')
   }
 
@@ -306,8 +330,19 @@ export function Admin() {
           form={
             <form onSubmit={submitGame} className="forum-card p-4 space-y-3">
               <h2 className="font-semibold">{gameForm.id ? 'Edit game' : 'Add trending game'}</h2>
+              <GameCatalogPicker
+                onPick={(g) => {
+                  if (!g) return
+                  setGameForm((prev) => ({
+                    ...prev,
+                    title: g.name,
+                    subtitle: g.brand,
+                    imageUrl: g.logo,
+                  }))
+                }}
+              />
               <input className="input" placeholder="Title" value={gameForm.title} onChange={(e) => setGameForm({ ...gameForm, title: e.target.value })} required />
-              <input className="input" placeholder="Subtitle" value={gameForm.subtitle} onChange={(e) => setGameForm({ ...gameForm, subtitle: e.target.value })} />
+              <input className="input" placeholder="Subtitle (brand)" value={gameForm.subtitle} onChange={(e) => setGameForm({ ...gameForm, subtitle: e.target.value })} />
               <input className="input" placeholder="Link URL" value={gameForm.url} onChange={(e) => setGameForm({ ...gameForm, url: e.target.value })} />
               <input className="input" type="number" value={gameForm.order} onChange={(e) => setGameForm({ ...gameForm, order: Number(e.target.value) })} />
               <ImageField value={gameForm.imageUrl} onChange={(imageUrl) => setGameForm({ ...gameForm, imageUrl })} />
@@ -334,23 +369,73 @@ export function Admin() {
           form={
             <form onSubmit={submitProv} className="forum-card p-4 space-y-3">
               <h2 className="font-semibold">{provForm.id ? 'Edit provider' : 'Add provider'}</h2>
+              <p className="text-xs prose-muted">Home top pins: {homeTopCount}/4 (first cards in the home brand carousel)</p>
+              <ProviderCatalogPicker
+                onPick={(p) => {
+                  if (!p) return
+                  setProvForm((prev) => ({
+                    ...prev,
+                    name: p.name,
+                    imageUrl: p.logo,
+                  }))
+                }}
+              />
               <input className="input" placeholder="Name" value={provForm.name} onChange={(e) => setProvForm({ ...provForm, name: e.target.value })} required />
               <input className="input" placeholder="Link URL" value={provForm.url} onChange={(e) => setProvForm({ ...provForm, url: e.target.value })} />
               <input className="input" type="number" step="0.1" value={provForm.rating} onChange={(e) => setProvForm({ ...provForm, rating: Number(e.target.value) })} />
               <input className="input" type="number" value={provForm.order} onChange={(e) => setProvForm({ ...provForm, order: Number(e.target.value) })} />
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={provForm.homeTop}
+                  onChange={(e) => setProvForm({ ...provForm, homeTop: e.target.checked })}
+                />
+                Home top (max 4)
+              </label>
               <ImageField value={provForm.imageUrl} onChange={(imageUrl) => setProvForm({ ...provForm, imageUrl })} />
               <button type="submit" className="btn btn-primary">Save</button>
             </form>
           }
-          items={state.providers}
+          items={[...state.providers].sort((a, b) => Number(!!b.homeTop) - Number(!!a.homeTop) || a.order - b.order)}
           render={(p: GameProvider) => (
             <div className="p-3 flex items-center gap-3">
-              <MediaOrPlaceholder src={p.imageUrl} label={p.name} className="w-12 h-12 rounded shrink-0" />
-              <div className="flex-1">
-                <div className="text-sm font-medium">{p.name}</div>
-                <div className="text-xs prose-muted">{p.rating} ★</div>
+              <MediaOrPlaceholder src={p.imageUrl} label={p.name} className="w-12 h-12 rounded shrink-0" fit="contain" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{p.name}</div>
+                <div className="text-xs prose-muted">
+                  {p.rating} ★ · order {p.order}
+                  {p.homeTop ? ' · Home top' : ''}
+                </div>
               </div>
-              <button type="button" className="btn btn-secondary text-xs" onClick={() => setProvForm(p)}>Edit</button>
+              <button
+                type="button"
+                className={`btn text-xs ${p.homeTop ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => {
+                  void toggleProviderHomeTop(p.id).then((res) => {
+                    if (!res.ok) toast(res.error)
+                    else toast(res.homeTop ? 'Pinned to home top' : 'Removed from home top')
+                  })
+                }}
+              >
+                {p.homeTop ? 'Home top' : 'Pin home'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary text-xs"
+                onClick={() =>
+                  setProvForm({
+                    id: p.id,
+                    name: p.name,
+                    url: p.url,
+                    imageUrl: p.imageUrl,
+                    rating: p.rating,
+                    order: p.order,
+                    homeTop: !!p.homeTop,
+                  })
+                }
+              >
+                Edit
+              </button>
               <button type="button" className="btn btn-danger text-xs" onClick={() => deleteProvider(p.id)}>Delete</button>
             </div>
           )}

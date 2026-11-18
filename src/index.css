@@ -353,13 +353,6 @@ button, input, textarea, select { font: inherit; }
   }
 }
 
-.xf-name-pill .uname-plate {
-  max-width: 100%;
-}
-.xf-name-pill .uname-frame-none .uname-text,
-.xf-name-pill .uname-frame-none {
-  color: inherit;
-}
 .page-title .uname-plate { font-size: inherit; height: 1.35em; }
 
 .nameplate-studio { display: grid; gap: 16px; }
@@ -1304,17 +1297,16 @@ button, input, textarea, select { font: inherit; }
   padding: 5px 0;
 }
 
-.xf-name-pill {
-  display: inline-block;
+/* Don't stretch nameplates across the grid track — size to content. */
+.xf-notable-name {
+  justify-self: start;
+  min-width: 0;
   max-width: 100%;
-  padding: 1px 7px;
-  border-radius: 2px;
   font-size: 12px;
-  font-weight: 600;
   line-height: 1.45;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.xf-notable-name .uname-plate {
+  max-width: 100%;
   vertical-align: middle;
 }
 
@@ -1322,6 +1314,7 @@ button, input, textarea, select { font: inherit; }
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--color-ink);
+  justify-self: end;
 }
 
 .xf-see-more {
@@ -1382,7 +1375,60 @@ button, input, textarea, select { font: inherit; }
   }
 }
 
+.drag-scroll-wrap {
+  position: relative;
+}
+.drag-scroll-row {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: pan-y;
+  user-select: none;
+  scroll-behavior: auto; /* smooth is applied via scrollTo({ behavior: 'smooth' }) */
+}
+.drag-scroll-row::-webkit-scrollbar {
+  display: none;
+}
+.drag-scroll-row > * {
+  flex: 0 0 calc((100% - 1.5rem) / 4);
+  min-width: 7.5rem;
+}
+.drag-scroll-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--xf-line-soft);
+  background: color-mix(in oklab, var(--color-panel) 88%, var(--color-gold) 12%);
+  color: var(--color-gold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+.drag-scroll-arrow:hover {
+  border-color: color-mix(in oklab, var(--color-gold) 50%, var(--color-border) 50%);
+  background: color-mix(in oklab, var(--color-panel-2) 80%, var(--color-gold) 20%);
+}
+.drag-scroll-arrow-prev {
+  left: -6px;
+}
+.drag-scroll-arrow-next {
+  right: -6px;
+}
+
 @media (max-width: 700px) {
+  .drag-scroll-row > * {
+    flex-basis: calc((100% - 0.5rem) / 2);
+  }
+  .drag-scroll-arrow-prev {
+    left: 2px;
+  }
+  .drag-scroll-arrow-next {
+    right: 2px;
+  }
   .xf-profile-head {
     grid-template-columns: 1fr;
     justify-items: center;

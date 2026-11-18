@@ -64,6 +64,8 @@ export interface Thread {
   bookmarked?: boolean
   unread?: boolean
   author?: User | null
+  /** WPML translation map: { en: "12", bn: "57" } */
+  translations?: Record<string, string>
 }
 
 export interface Comment {
@@ -74,6 +76,8 @@ export interface Comment {
   content: string
   body: PostBody
   createdAt: string
+  lang?: string
+  sourceLang?: string
 }
 
 export interface Like {
@@ -134,6 +138,8 @@ export interface GameProvider {
   url: string
   rating: number
   order: number
+  /** Pinned to the front of the home brand carousel (max 4). */
+  homeTop?: boolean
 }
 
 export interface ForumState {

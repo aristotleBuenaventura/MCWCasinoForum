@@ -63,7 +63,24 @@ app.use(
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "256kb" }));
 app.use(cookieParser());
 app.use(requireSameOrigin);
-app.use("/uploads", express.static(uploadsDir(), { maxAge: "7d", fallthrough: false }));
+app.use("/uploads", (req, res, next) => {
+  if (/\.(php|phtml|phar|html?|svg)(\?|$)/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  return next();
+});
+app.use(
+  "/uploads",
+  express.static(uploadsDir(), {
+    maxAge: "7d",
+    fallthrough: false,
+    setHeaders(res) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", "inline");
+    },
+  }),
+);
 
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);

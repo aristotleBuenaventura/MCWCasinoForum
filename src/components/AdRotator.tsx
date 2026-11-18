@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { SLOT_ART } from '../data/artwork'
 import { useForum } from '../context/ForumContext'
+import { safeExternalHref } from '../lib/utils'
 import type { AdSlot } from '../types'
 
 export function AdRotator({
@@ -26,18 +27,25 @@ export function AdRotator({
   }, [ads.length, state.adRotateSec])
 
   const ad = ads[index % Math.max(ads.length, 1)]
-  const src = ad?.imageUrl || SLOT_ART[slot]
-  const href = ad?.url
+  const src = safeExternalHref(ad?.imageUrl) || SLOT_ART[slot]
+  const href = safeExternalHref(ad?.url)
   const title = ad?.title || 'Promotion'
   const wrap = variant === 'inline' ? 'overflow-hidden block' : 'forum-card overflow-hidden block'
 
   const inner = (
-    <img src={src} alt={title} className={`w-full ${heightClass} object-cover`} />
+    <img
+      src={src}
+      alt={title}
+      className={`w-full ${heightClass} object-contain bg-[#0a0e18]`}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+    />
   )
 
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" className={`${wrap} ${className}`}>
+      <a href={href} target="_blank" rel="noopener noreferrer nofollow" className={`${wrap} ${className}`}>
         {inner}
       </a>
     )

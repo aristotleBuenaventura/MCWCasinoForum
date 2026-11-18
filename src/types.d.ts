@@ -119,6 +119,7 @@ export interface GameProvider {
     url: string;
     rating: number;
     order: number;
+    homeTop?: boolean;
 }
 export interface ForumState {
     users: User[];

@@ -1,38 +1,42 @@
 # MCW Casino Forum
 
-Dark casino community forum. Same stack as MR Database Tool: React + Express + MySQL + Prisma + Nginx + PM2.
+Dark casino community forum. **Default local stack: React + headless WordPress** (WPML-ready). Express/Prisma remains available as a fallback.
 
 ## Stack
 
 | Layer | Tech |
 | --- | --- |
 | Frontend | React, Vite, React Router |
-| Backend | Node.js, Express, JWT httpOnly cookie |
-| Database | Local MySQL + Prisma |
-| Deploy | Nginx + PM2 + Certbot on a droplet |
+| Backend (default) | WordPress REST (`mcw-forum` plugin) |
+| Backend (fallback) | Node.js, Express, Prisma |
+| Database | MariaDB/MySQL |
+| i18n path | WPML on WordPress CPTs/taxonomies — see [docs/WORDPRESS-HEADLESS.md](docs/WORDPRESS-HEADLESS.md) |
 
-## Local development
+## Local development (WordPress)
 
-MySQL must already be running (same as MR Database Tool). Create a separate database:
+1. MariaDB running; PHP 8.3+ with mysqli.
+2. WordPress DB `mcwforum_wp` + plugin activated (see docs).
+3. Seed + run:
 
-```sql
-CREATE DATABASE mcwforum CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```bash
+npm run wp:seed
+npm run dev
 ```
 
-Then:
+- Web: http://localhost:5173  
+- WP API: http://127.0.0.1:8080/wp-json/mcw/v1/health  
+- WP admin: http://127.0.0.1:8080/wp-admin/ (`admin` / `admin123`)
+
+Vite proxies `/api` → WordPress so cookies work on localhost.
+
+### Express fallback
 
 ```bash
 npm run install:all
 cp backend/.env.example backend/.env
-# edit backend/.env with your local MySQL user/password
-cd backend && npx prisma db push && npm run db:seed && cd ..
-npm run dev
+npm run db:push && npm run db:seed
+npm run dev:express
 ```
-
-- Web: http://localhost:5173
-- API: http://localhost:4000 (`/api/health`)
-
-Vite proxies `/api` to Express so login cookies work on localhost.
 
 ## Demo accounts
 

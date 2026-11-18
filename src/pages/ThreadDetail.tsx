@@ -1,27 +1,45 @@
 import { Bookmark, Calendar, Flag, Heart, MessageSquare, Pin, Share2, ThumbsUp, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DocumentTitle } from '../components/DocumentTitle'
-import { api } from '../lib/api'
 import { Avatar } from '../components/Avatar'
 import { Username } from '../components/Username'
 import { RankBadges } from '../components/RankBadges'
 import { LoginLink } from '../components/LoginModal'
 import { PostBodyView } from '../components/PostBodyView'
-import { PostComposer } from '../components/PostComposer'
 import { useToast } from '../components/Toast'
-import { AdRotator } from '../components/AdRotator'
 import { useForum } from '../context/ForumContext'
+import { localizeCategoryName } from '../i18n/messages'
+import { useLocale } from '../i18n/locale'
+import { setActiveThreadTranslations } from '../i18n/threadTranslations'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
+import { readThreadCache } from '../lib/threadCache'
+import { prefetchThread, takePrefetchedThread } from '../lib/threadPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Comment, PostBody, Thread, User } from '../types'
 
-const PER_PAGE = 10
+const PER_PAGE = 20
+
+const PostComposer = lazy(() =>
+  import('../components/PostComposer').then((m) => ({ default: m.PostComposer })),
+)
+const AdRotator = lazy(() =>
+  import('../components/AdRotator').then((m) => ({ default: m.AdRotator })),
+)
 
 type ThreadComment = Comment & { author?: User | null; likeCount?: number; liked?: boolean }
 
 function MemberCard({ user }: { user?: User }) {
   const { state } = useForum()
+  const { lang } = useLocale()
   const threads = state.threads.filter((t) => t.authorId === user?.id).length
   const comments = state.comments.filter((c) => c.authorId === user?.id).length
   const likes =
@@ -42,11 +60,43 @@ function MemberCard({ user }: { user?: User }) {
         <RankBadges user={user} showStaffTag />
       </div>
       <dl className="mt-3 text-[11px] prose-muted space-y-1 text-left">
-        <div className="flex items-center gap-1.5"><Calendar size={11} /> {user ? forumTime(user.createdAt) : '—'}</div>
+        <div className="flex items-center gap-1.5"><Calendar size={11} /> {user ? forumTime(user.createdAt, lang) : '—'}</div>
         <div className="flex items-center gap-1.5"><MessageSquare size={11} /> {compactNumber(threads + comments)}</div>
         <div className="flex items-center gap-1.5"><Heart size={11} /> {compactNumber(likes)}</div>
       </dl>
     </aside>
+  )
+}
+
+function PostSkeleton() {
+  return (
+    <article className="xf-post animate-pulse" aria-hidden="true">
+      <aside className="xf-member">
+        <div className="mx-auto h-[72px] w-[72px] rounded-full bg-[var(--color-panel-2)]" />
+        <div className="mt-3 mx-auto h-3 w-20 rounded bg-[var(--color-panel-2)]" />
+        <div className="mt-2 mx-auto h-3 w-16 rounded bg-[var(--color-panel-2)]" />
+      </aside>
+      <div className="xf-body space-y-3">
+        <div className="h-3 w-28 rounded bg-[var(--color-panel-2)]" />
+        <div className="h-3 w-full rounded bg-[var(--color-panel-2)]" />
+        <div className="h-3 w-[92%] rounded bg-[var(--color-panel-2)]" />
+        <div className="h-3 w-[70%] rounded bg-[var(--color-panel-2)]" />
+      </div>
+    </article>
+  )
+}
+
+function ThreadShellSkeleton({ title }: { title?: string }) {
+  const { t } = useLocale()
+  return (
+    <div className="max-w-[1100px] mx-auto space-y-3">
+      <div className="h-3 w-40 rounded bg-[var(--color-panel-2)] animate-pulse" />
+      <h1 className="page-title gold-text leading-snug max-w-3xl">
+        {title || t('thread.loading')}
+      </h1>
+      <PostSkeleton />
+      <PostSkeleton />
+    </div>
   )
 }
 
@@ -56,6 +106,7 @@ export function ThreadDetail() {
   const page = Math.max(1, Number(params.get('page') || 1))
   const navigate = useNavigate()
   const toast = useToast()
+  const { t, lang } = useLocale()
   const {
     state,
     getUser,
@@ -74,53 +125,142 @@ export function ThreadDetail() {
     cacheThreads,
   } = useForum()
 
-  const [thread, setThread] = useState<Thread | null>(state.threads.find((t) => t.id === id) || null)
-  const [loading, setLoading] = useState(!state.threads.find((t) => t.id === id))
+  const cachedThread = useMemo(
+    () => (id ? state.threads.find((item) => item.id === id) || null : null),
+    [id, state.threads],
+  )
+
+  const [thread, setThread] = useState<Thread | null>(cachedThread)
   const [comments, setComments] = useState<ThreadComment[]>([])
+  const [commentsReady, setCommentsReady] = useState(false)
   const [commentTotal, setCommentTotal] = useState(0)
+  const [notFound, setNotFound] = useState(false)
+  const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
+  const [uploading, setUploading] = useState(false)
+  const [saved, setSaved] = useState(!!cachedThread?.bookmarked)
+  const [quoteParent, setQuoteParent] = useState<string | null>(null)
+  const [composerReady, setComposerReady] = useState(false)
+  const [adReady, setAdReady] = useState(false)
+
   const authorCached = thread ? getUser(thread.authorId) : undefined
   const author = authorCached ? { ...thread?.author, ...authorCached } : thread?.author
   const forum = thread ? state.categories.find((c) => c.id === thread.forumId) : undefined
-  const [replyBody, setReplyBody] = useState<PostBody>(emptyBody)
-  const [uploading, setUploading] = useState(false)
-  const [saved, setSaved] = useState(!!thread?.bookmarked)
-  const [quoteParent, setQuoteParent] = useState<string | null>(null)
 
+  // Keep local thread in sync if cache arrives from feed navigation
+  useEffect(() => {
+    if (cachedThread && (!thread || thread.id !== cachedThread.id)) {
+      setThread(cachedThread)
+      setSaved(!!cachedThread.bookmarked)
+      setNotFound(false)
+    }
+  }, [cachedThread, thread])
+
+  // Progressive load: session cache → no network; else prefetch/API once.
   useEffect(() => {
     if (!id) return
-    void api<{ thread: Thread }>(`/api/threads/${id}`).then((res) => {
-      if (!res.ok) {
-        setThread(null)
-        setLoading(false)
+    let cancelled = false
+    setNotFound(false)
+
+    const apply = (bundle: {
+      thread: Thread
+      translations?: Record<string, string>
+      comments: ThreadComment[]
+      commentTotal: number
+    }) => {
+      if (cancelled) return
+      const next = bundle.translations ? { ...bundle.thread, translations: bundle.translations } : bundle.thread
+      // Urgent: OP / title
+      setThread(next)
+      setActiveThreadTranslations(bundle.translations || null)
+      setSaved(!!next.bookmarked)
+      cacheThreads([next])
+      if (next.author) cacheUsers([next.author])
+      // Non-urgent: comments list (keeps UI responsive).
+      // Don't re-check `cancelled` inside startTransition — StrictMode cleanup
+      // can flip it true after schedule and leave commentsReady stuck false.
+      startTransition(() => {
+        setComments(bundle.comments)
+        setCommentTotal(bundle.commentTotal)
+        cacheUsers(bundle.comments.map((c) => c.author).filter((u): u is User => Boolean(u)))
+        setCommentsReady(true)
+      })
+      if (next.id && next.id !== id) {
+        const qs = params.toString()
+        navigate(`/thread/${next.id}${qs ? `?${qs}` : ''}`, { replace: true })
+      }
+    }
+
+    const sessionCached = readThreadCache(id, page, lang)
+    if (sessionCached) {
+      apply(sessionCached)
+      return () => {
+        cancelled = true
+        setActiveThreadTranslations(null)
+      }
+    }
+
+    setCommentsReady(false)
+
+    const pending = takePrefetchedThread(id, page, lang) || prefetchThread(id, { page, limit: PER_PAGE, lang })
+    void pending.then((bundle) => {
+      if (cancelled) return
+      if (!bundle) {
+        if (!cachedThread) setNotFound(true)
+        setComments([])
+        setCommentTotal(0)
+        setCommentsReady(true)
+        setActiveThreadTranslations(null)
         return
       }
-      setThread(res.thread)
-      setSaved(!!res.thread.bookmarked)
-      cacheThreads([res.thread])
-      if (res.thread.author) cacheUsers([res.thread.author])
-      setLoading(false)
+      apply(bundle)
     })
-  }, [id, cacheThreads, cacheUsers])
 
-  useEffect(() => {
-    if (!id) return
-    void api<{ comments: ThreadComment[]; total: number }>(
-      `/api/threads/${id}/comments?page=${page}&limit=${PER_PAGE}`,
-    ).then((res) => {
-      if (!res.ok) return
-      setComments(res.comments)
-      setCommentTotal(res.total)
-      cacheUsers(res.comments.map((c) => c.author).filter((u): u is User => Boolean(u)))
-    })
-  }, [id, page, cacheUsers])
+    return () => {
+      cancelled = true
+      setActiveThreadTranslations(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, page, lang, cacheThreads, cacheUsers, navigate])
 
+  // Defer view bump so it never contends with first paint
   useEffect(() => {
     if (!id) return
     const key = `mcw_viewed_${id}`
     if (sessionStorage.getItem(key)) return
-    sessionStorage.setItem(key, '1')
-    bumpViews(id)
+    const run = () => {
+      sessionStorage.setItem(key, '1')
+      bumpViews(id)
+    }
+    const ric = window.requestIdleCallback?.bind(window)
+    if (ric) {
+      const idle = ric(run, { timeout: 2500 })
+      return () => window.cancelIdleCallback?.(idle)
+    }
+    const t = window.setTimeout(run, 800)
+    return () => window.clearTimeout(t)
   }, [id, bumpViews])
+
+  // Lazy-mount heavy UI (composer + ad) after first paint / idle
+  useEffect(() => {
+    setComposerReady(false)
+    setAdReady(false)
+    const ric = window.requestIdleCallback?.bind(window)
+    if (ric) {
+      const idle = ric(
+        () => {
+          setComposerReady(true)
+          setAdReady(true)
+        },
+        { timeout: 1200 },
+      )
+      return () => window.cancelIdleCallback?.(idle)
+    }
+    const t = window.setTimeout(() => {
+      setComposerReady(true)
+      setAdReady(true)
+    }, 200)
+    return () => window.clearTimeout(t)
+  }, [id])
 
   const posts = useMemo(() => {
     const mapped = comments.map((c) => ({
@@ -152,18 +292,20 @@ export function ThreadDetail() {
   const pageCount = Math.max(1, Math.ceil((commentTotal + 1) / PER_PAGE))
   const pageItems = posts
 
-  if (loading) {
-    return <div className="forum-card p-6 text-center max-w-[1100px] mx-auto prose-muted">Loading discussion…</div>
-  }
-
-  if (!thread) {
+  if (notFound && !thread) {
     return (
       <div className="forum-card p-6 text-center max-w-[1100px] mx-auto">
-        <p>Thread not found.</p>
-        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">Back to communities</Link>
+        <p>{t('thread.notFound')}</p>
+        <Link to="/communities" className="btn btn-primary mt-3 inline-flex">{t('community.back')}</Link>
       </div>
     )
   }
+
+  if (!thread) {
+    return <ThreadShellSkeleton />
+  }
+
+  const skeletonCount = Math.min(3, Math.max(1, thread.replyCount || 2))
 
   const canDelete = currentUser && (currentUser.id === thread.authorId || isMod)
   const goPage = (n: number) => setParams(n <= 1 ? {} : { page: String(n) })
@@ -191,14 +333,15 @@ export function ThreadDetail() {
       goPage(lastPage)
     } else {
       setComments((list) => (list.some((c) => c.id === posted.id) ? list : [...list, posted]))
+      setCommentsReady(true)
     }
-    toast('Reply posted')
+    toast(t('common.replyPosted'))
   }
 
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
-      toast('Link copied')
+      toast(t('common.linkCopied'))
     } catch {
       toast(window.location.href)
     }
@@ -207,23 +350,14 @@ export function ThreadDetail() {
   return (
     <div className="max-w-[1100px] mx-auto space-y-3">
       <DocumentTitle title={`${thread.title} — MCW Forum`} description={thread.content.slice(0, 160)} />
-      <script type="application/ld+json">
-        {JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'DiscussionForumPosting',
-          headline: thread.title,
-          datePublished: thread.createdAt,
-          dateModified: thread.updatedAt,
-          author: author ? { '@type': 'Person', name: author.displayName } : undefined,
-          url: typeof window !== 'undefined' ? window.location.href : undefined,
-        })}
-      </script>
       <div className="text-[12px] prose-muted">
-        <Link to="/communities" className="gold-text hover:underline">Forum list</Link>
+        <Link to="/communities" className="gold-text hover:underline">{t('communities.forumList')}</Link>
         {forum && (
           <>
             {' / '}
-            <Link to={`/communities/${forum.slug}`} className="gold-text hover:underline">{forum.name}</Link>
+            <Link to={`/communities/${forum.slug}`} className="gold-text hover:underline">
+              {localizeCategoryName(forum.slug, forum.name, lang)}
+            </Link>
           </>
         )}
       </div>
@@ -234,15 +368,15 @@ export function ThreadDetail() {
           {thread.title}
         </h1>
         {currentUser ? (
-          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-primary">Post thread</Link>
+          <Link to={`/create?forum=${thread.forumId}`} className="btn btn-primary">{t('community.postThread')}</Link>
         ) : (
-          <LoginLink className="btn btn-secondary">Log in to post</LoginLink>
+          <LoginLink className="btn btn-secondary">{t('thread.loginToPost')}</LoginLink>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-[12px] prose-muted">
         <Username user={author} />
-        <span>{forumTime(thread.createdAt)}</span>
+        <span>{forumTime(thread.createdAt, lang)}</span>
         {thread.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
         {currentUser && (
           <button
@@ -250,7 +384,7 @@ export function ThreadDetail() {
             className={`inline-flex items-center gap-1 ${saved ? 'text-[var(--color-gold)]' : ''}`}
             onClick={() => void toggleBookmark(thread.id).then(setSaved)}
           >
-            <Bookmark size={12} /> {saved ? 'Saved' : 'Save'}
+            <Bookmark size={12} /> {saved ? t('thread.saved') : t('thread.save')}
           </button>
         )}
       </div>
@@ -261,7 +395,7 @@ export function ThreadDetail() {
             <button key={n} type="button" className={n === page ? 'is-active' : ''} onClick={() => goPage(n)}>{n}</button>
           ))}
           {page < pageCount && (
-            <button type="button" onClick={() => goPage(page + 1)}>Next</button>
+            <button type="button" onClick={() => goPage(page + 1)}>{t('thread.next')}</button>
           )}
         </nav>
       )}
@@ -275,32 +409,34 @@ export function ThreadDetail() {
         const likeN = post.likeCount
         return (
           <article key={post.id} className="xf-post">
-            <MemberCard user={user} />
+            <MemberCard user={user ?? undefined} />
             <div className="xf-body">
               <div className="flex items-center justify-between gap-2 text-[12px] prose-muted border-b border-[var(--xf-line-soft)] pb-2 mb-3">
-                <span>{forumTime(post.createdAt)}</span>
+                <span>{forumTime(post.createdAt, lang)}</span>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={share} className="hover:text-[var(--color-gold)] inline-flex items-center gap-1">
-                    <Share2 size={12} /> Share
+                    <Share2 size={12} /> {t('common.share')}
                   </button>
                   <span>#{number}</span>
                 </div>
               </div>
               <PostBodyView body={post.body} />
-              {isOp && number === 1 && (
-                <AdRotator
-                  slot="thread"
-                  variant="inline"
-                  className="mt-4 border border-[var(--xf-line-soft)]"
-                  heightClass="h-28 max-h-28"
-                />
+              {isOp && number === 1 && adReady && (
+                <Suspense fallback={null}>
+                  <AdRotator
+                    slot="thread"
+                    variant="inline"
+                    className="mt-4 border border-[var(--xf-line-soft)]"
+                    heightClass="h-28 max-h-28"
+                  />
+                </Suspense>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-3 text-[12px] prose-muted">
                 <button
                   type="button"
                   className={`inline-flex items-center gap-1 ${likedPost ? 'text-[var(--color-gold)]' : ''}`}
                   onClick={() => {
-                    if (!currentUser) return toast('Log in to like')
+                    if (!currentUser) return toast(t('thread.loginToLike'))
                     toggleLike(isOp ? 'thread' : 'comment', post.id)
                   }}
                 >
@@ -311,10 +447,10 @@ export function ThreadDetail() {
                     type="button"
                     onClick={() => {
                       setQuoteParent(post.id)
-                      toast('Replying to this comment')
+                      toast(t('thread.replying'))
                     }}
                   >
-                    Quote
+                    {t('thread.quote')}
                   </button>
                 )}
                 {currentUser && (
@@ -324,15 +460,15 @@ export function ThreadDetail() {
                       const reason = window.prompt('Why are you reporting this?')
                       if (!reason) return
                       report(isOp ? 'thread' : 'comment', post.id, reason)
-                      toast('Report submitted')
+                      toast(t('common.reported'))
                     }}
                   >
-                    <Flag size={13} className="inline mr-1" /> Report
+                    <Flag size={13} className="inline mr-1" /> {t('common.report')}
                   </button>
                 )}
                 {isOp && isMod && (
                   <button type="button" onClick={() => togglePin(thread.id)}>
-                    <Pin size={13} className="inline mr-1" /> {thread.pinned ? 'Unpin' : 'Pin'}
+                    <Pin size={13} className="inline mr-1" /> {thread.pinned ? t('thread.unpin') : t('thread.pin')}
                   </button>
                 )}
                 {isOp && canDelete && (
@@ -340,13 +476,13 @@ export function ThreadDetail() {
                     type="button"
                     className="text-[var(--color-danger)]"
                     onClick={() => {
-                      if (!window.confirm('Delete this thread?')) return
+                      if (!window.confirm(t('thread.confirmDelete'))) return
                       deleteThread(thread.id)
-                      toast('Thread deleted')
+                      toast(t('thread.deleted'))
                       navigate(forum ? `/communities/${forum.slug}` : '/communities')
                     }}
                   >
-                    <Trash2 size={13} className="inline mr-1" /> Delete
+                    <Trash2 size={13} className="inline mr-1" /> {t('thread.delete')}
                   </button>
                 )}
                 {!isOp && currentUser && (currentUser.id === post.authorId || isMod) && (
@@ -354,14 +490,14 @@ export function ThreadDetail() {
                     type="button"
                     className="text-[var(--color-danger)]"
                     onClick={() => {
-                      if (!window.confirm('Delete this reply?')) return
+                      if (!window.confirm(t('thread.confirmDeleteReply'))) return
                       deleteComment(post.id)
                       setComments((list) => list.filter((c) => c.id !== post.id))
                       setCommentTotal((n) => Math.max(0, n - 1))
-                      toast('Reply deleted')
+                      toast(t('thread.replyDeleted'))
                     }}
                   >
-                    <Trash2 size={13} className="inline mr-1" /> Delete
+                    <Trash2 size={13} className="inline mr-1" /> {t('thread.delete')}
                   </button>
                 )}
                 {isOp && isMod && author && author.role === 'user' && (
@@ -371,10 +507,10 @@ export function ThreadDetail() {
                     onClick={() => {
                       if (!window.confirm(`Remove user @${author.username}?`)) return
                       banUser(author.id, true)
-                      toast('User removed')
+                      toast(t('thread.userRemoved'))
                     }}
                   >
-                    Remove user
+                    {t('thread.removeUser')}
                   </button>
                 )}
               </div>
@@ -383,33 +519,47 @@ export function ThreadDetail() {
         )
       })}
 
+      {!commentsReady &&
+        Array.from({ length: skeletonCount }).map((_, i) => (
+          <PostSkeleton key={`sk-${i}`} />
+        ))}
+
       <section className="xf-form">
-        <div className="xf-form-head">Reply to thread</div>
+        <div className="xf-form-head">{t('thread.replyTo')}</div>
         {currentUser ? (
           <form onSubmit={onComment}>
             {quoteParent && (
               <p className="text-[12px] px-3 pt-2 prose-muted">
-                Replying to a comment.{' '}
+                {t('thread.replyingToComment')}{' '}
                 <button type="button" className="gold-text" onClick={() => setQuoteParent(null)}>
-                  Cancel
+                  {t('thread.cancel')}
                 </button>
               </p>
             )}
-            <PostComposer
-              value={replyBody}
-              onChange={setReplyBody}
-              onBusyChange={setUploading}
-              placeholder={quoteParent ? 'Write your quoted reply...' : 'Write your reply. Use @username to mention someone.'}
-            />
+            {composerReady ? (
+              <Suspense
+                fallback={<div className="p-4 text-sm prose-muted">{t('common.loading')}</div>}
+              >
+                <PostComposer
+                  value={replyBody}
+                  onChange={setReplyBody}
+                  onBusyChange={setUploading}
+                  placeholder={quoteParent ? t('thread.writeQuotedReply') : t('thread.writeReply')}
+                />
+              </Suspense>
+            ) : (
+              <div className="p-4 text-sm prose-muted">{t('common.loading')}</div>
+            )}
             <div className="xf-form-actions">
-              <button type="submit" className="btn-post" disabled={uploading}>
-                {uploading ? 'Uploading…' : 'Post reply'}
+              <button type="submit" className="btn-post" disabled={uploading || !composerReady}>
+                {uploading ? t('thread.uploading') : t('thread.postReply')}
               </button>
             </div>
           </form>
         ) : (
           <p className="text-[12px] prose-muted px-3 py-3">
-            <LoginLink className="gold-text hover:underline bg-transparent border-0 p-0 cursor-pointer">Log in</LoginLink> to reply.
+            <LoginLink className="gold-text hover:underline bg-transparent border-0 p-0 cursor-pointer">{t('nav.login')}</LoginLink>{' '}
+            {t('thread.loginToReply')}
           </p>
         )}
       </section>
