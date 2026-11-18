@@ -13,23 +13,6 @@ import type { MessageKey } from '../i18n/messages'
 
 type BoardKey = 'messages' | 'reactions' | 'media'
 
-function usernameBanner(user: User) {
-  if (user.role === 'admin') return { background: '#1d9e75', color: '#fff' }
-  if (user.role === 'moderator') return { background: '#c0392b', color: '#fff' }
-  const palettes = [
-    { background: '#f3f3f3', color: '#111' },
-    { background: '#1769a5', color: '#fff' },
-    { background: '#c0392b', color: '#fff' },
-    { background: '#c9a046', color: '#1a1408' },
-    { background: '#16a085', color: '#fff' },
-    { background: '#2c3e50', color: '#f0cf79' },
-    { background: '#8e44ad', color: '#fff' },
-  ]
-  let hash = 0
-  for (let i = 0; i < user.username.length; i++) hash = user.username.charCodeAt(i) + ((hash << 5) - hash)
-  return palettes[Math.abs(hash) % palettes.length]
-}
-
 export function Members() {
   const { t, lang } = useLocale()
   const [params, setParams] = useSearchParams()
@@ -142,7 +125,7 @@ export function Members() {
                   {list.map((row) => (
                     <li key={row.user.id} className="xf-notable-row">
                       <Avatar user={row.user} size={28} />
-                      <span className="xf-name-pill min-w-0" style={usernameBanner(row.user)}>
+                      <span className="xf-notable-name">
                         <Username user={row.user} />
                       </span>
                       <span className="xf-notable-count">{score(row, item.key).toLocaleString()}</span>
@@ -167,10 +150,14 @@ export function Members() {
           </div>
           {ranked(listKey || 'messages').map((row) => (
             <div key={row.user.id} className="xf-member-list-row">
-              <Link to={`/profile/${row.user.username}`} className="flex items-center gap-2 min-w-0">
-                <Avatar user={row.user} size={26} />
-                <Username user={row.user} label="username" className="truncate" />
-              </Link>
+              <div className="flex items-center gap-2 min-w-0">
+                <Link to={`/profile/${row.user.username}`} className="shrink-0">
+                  <Avatar user={row.user} size={26} />
+                </Link>
+                <span className="xf-notable-name">
+                  <Username user={row.user} label="username" />
+                </span>
+              </div>
               <span className="prose-muted hidden sm:block truncate">{t(rankDisplayKey(row.user))}</span>
               <span className="text-right tabular-nums">{row.messages.toLocaleString()}</span>
               <span className="text-right tabular-nums hidden md:block">{row.reactions.toLocaleString()}</span>
@@ -189,12 +176,16 @@ function MemberResultRow({
   row: { user: User; messages: number; reactions: number }
 }) {
   return (
-    <Link to={`/profile/${row.user.username}`} className="list-row flex items-center gap-3 px-3 py-2">
-      <Avatar user={row.user} size={32} />
+    <div className="list-row flex items-center gap-3 px-3 py-2">
+      <Link to={`/profile/${row.user.username}`} className="shrink-0">
+        <Avatar user={row.user} size={32} />
+      </Link>
       <div className="min-w-0 flex-1">
-        <Username user={row.user} label="username" link={false} />
+        <span className="xf-notable-name">
+          <Username user={row.user} label="username" />
+        </span>
         <div className="text-[11px] prose-muted">{row.messages} · {row.reactions}</div>
       </div>
-    </Link>
+    </div>
   )
 }

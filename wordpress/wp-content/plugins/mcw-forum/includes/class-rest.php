@@ -200,6 +200,12 @@ class MCW_Forum_REST
             'permission_callback' => '__return_true',
         ]);
 
+        register_rest_route($ns, '/online', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'online'],
+            'permission_callback' => '__return_true',
+        ]);
+
         register_rest_route($ns, '/home', [
             'methods' => 'GET',
             'callback' => [self::class, 'home'],
@@ -547,6 +553,19 @@ class MCW_Forum_REST
         $user = MCW_Forum_Auth::current_wp_user();
         $lang = self::request_lang($request) ?: 'en';
         return new WP_REST_Response(array_merge(['ok' => true], MCW_Forum_Forum::load_bootstrap($user, $lang)));
+    }
+
+    /** Online members (active session within 15 minutes). Touching auth refreshes last_seen. */
+    public static function online(WP_REST_Request $request): WP_REST_Response
+    {
+        MCW_Forum_Auth::current_wp_user();
+        $limit = min(24, max(1, (int) ($request->get_param('limit') ?: 8)));
+        $payload = MCW_Forum_Forum::online_users($limit);
+        return new WP_REST_Response([
+            'ok' => true,
+            'users' => $payload['users'],
+            'total' => $payload['total'],
+        ]);
     }
 
     public static function home(WP_REST_Request $request): WP_REST_Response

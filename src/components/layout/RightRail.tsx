@@ -4,19 +4,14 @@ import { useForum } from '../../context/ForumContext'
 import { localizeCategoryName } from '../../i18n/messages'
 import { useLocale } from '../../i18n/locale'
 import { AdRotator } from '../AdRotator'
+import { Avatar } from '../Avatar'
 import { Username } from '../Username'
 
-export function RightRail() {
-  const { state, getUser } = useForum()
-  const { t, lang } = useLocale()
+const ONLINE_SHOW = 8
 
-  const replyCounts = new Map<string, number>()
-  for (const c of state.comments) replyCounts.set(c.authorId, (replyCounts.get(c.authorId) ?? 0) + 1)
-  const topContributors = [...replyCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([userId, replies]) => ({ user: getUser(userId), replies }))
-    .filter((x) => x.user && !x.user.banned)
+export function RightRail() {
+  const { state, onlineUsers, onlineCount } = useForum()
+  const { t, lang } = useLocale()
 
   const members = state.users.filter((u) => !u.banned).length
   const messagesCount = state.threads.length + state.comments.length
@@ -26,6 +21,8 @@ export function RightRail() {
     return state.threads.filter((t) => ids.includes(t.forumId)).length
   }
   const games = [...state.trendingGames].sort((a, b) => a.order - b.order)
+  const shownOnline = onlineUsers.slice(0, ONLINE_SHOW)
+  const moreOnline = Math.max(0, onlineCount - shownOnline.length)
 
   return (
     <aside className="space-y-3">
@@ -50,15 +47,37 @@ export function RightRail() {
       </section>
 
       <section className="forum-card overflow-hidden">
-        <div className="px-3 py-2 section-title">{t('railRight.topContributors')}</div>
+        <div className="px-3 py-2 flex items-center justify-between gap-2">
+          <div className="section-title">{t('railRight.online')}</div>
+          <span className="text-[11px] tabular-nums prose-muted">{onlineCount}</span>
+        </div>
         <ul>
-          {topContributors.map(({ user, replies }) => (
-            <li key={user!.id} className="px-3 py-1.5 flex items-center justify-between text-[13px]">
-              <Username user={user} className="truncate" />
-              <span className="prose-muted text-[11px] tabular-nums">{replies}</span>
+          {shownOnline.map((user) => (
+            <li key={user.id} className="px-3 py-1.5 flex items-center gap-2 text-[13px] min-w-0">
+              <span className="relative shrink-0">
+                <Avatar user={user} size={22} />
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-[var(--color-panel)]"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="xf-notable-name min-w-0">
+                <Username user={user} />
+              </span>
             </li>
           ))}
+          {shownOnline.length === 0 && (
+            <li className="px-3 py-2.5 text-[12px] prose-muted">{t('railRight.onlineEmpty')}</li>
+          )}
         </ul>
+        {moreOnline > 0 && (
+          <Link
+            to="/members"
+            className="block px-3 py-2 text-[11px] gold-text hover:underline border-t border-[var(--color-border)]"
+          >
+            {t('railRight.onlineMore', { n: moreOnline })}
+          </Link>
+        )}
       </section>
 
       <section className="forum-card p-3">
@@ -81,7 +100,7 @@ export function RightRail() {
           <dt className="prose-muted">{t('common.members')}</dt>
           <dd className="text-right font-semibold">{members}</dd>
           <dt className="prose-muted">{t('railRight.activeUsers')}</dt>
-          <dd className="text-right font-semibold">{members}</dd>
+          <dd className="text-right font-semibold">{onlineCount}</dd>
         </dl>
       </section>
 

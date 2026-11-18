@@ -496,16 +496,20 @@ export function Home() {
             {weekly.map(({ user, replies }, rank) =>
               user ? (
                 <li key={user.id} className="flex items-center justify-between gap-2">
-                  <Link to={`/profile/${user.username}`} className="flex items-center gap-2 min-w-0">
-                    <Avatar user={user} size={28} />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Link to={`/profile/${user.username}`} className="shrink-0">
+                      <Avatar user={user} size={28} />
+                    </Link>
                     <div className="min-w-0">
-                      <div className="text-[13px] truncate"><Username user={user} link={false} /></div>
+                      <span className="xf-notable-name text-[13px]">
+                        <Username user={user} />
+                      </span>
                       <div className="text-[10px] prose-muted">
                         {rank === 0 ? t('home.reviewerMonth') : rank === 1 ? t('home.highRoller') : t('home.communityVoice')}
                       </div>
                     </div>
-                  </Link>
-                  <span className="text-[12px] gold-text tabular-nums">{replies}</span>
+                  </div>
+                  <span className="text-[12px] gold-text tabular-nums shrink-0">{replies}</span>
                 </li>
               ) : null,
             )}

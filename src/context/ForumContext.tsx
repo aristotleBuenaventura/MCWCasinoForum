@@ -58,6 +58,8 @@ type Bootstrap = {
   me: User | null
   unreadCount: number
   memberCount: number
+  onlineUsers?: User[]
+  onlineCount?: number
   categories: ForumCategory[]
   ads: Ad[]
   trendingGames: CmsItem[]
@@ -135,6 +137,8 @@ type ForumContextValue = {
   deleteProvider: (id: string) => void
   toggleProviderHomeTop: (id: string) => Promise<{ ok: true; homeTop: boolean } | { ok: false; error: string }>
   unreadCount: number
+  onlineUsers: User[]
+  onlineCount: number
   cacheUsers: (users: User[]) => void
   cacheThreads: (threads: Thread[]) => void
 }
@@ -164,23 +168,49 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false)
   const [memberCount, setMemberCount] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [onlineUsers, setOnlineUsers] = useState<User[]>([])
+  const [onlineCount, setOnlineCount] = useState(0)
   const openLogin = useCallback(() => setLoginOpen(true), [])
   const closeLogin = useCallback(() => setLoginOpen(false), [])
+
+  const applyOnline = useCallback((users: User[], total: number) => {
+    setOnlineUsers(users)
+    setOnlineCount(total)
+    setState((s) => {
+      const map = new Map(s.users.map((u) => [u.id, u]))
+      for (const u of users) map.set(u.id, u)
+      return { ...s, users: [...map.values()] }
+    })
+  }, [])
 
   const applyBootstrap = useCallback((boot: Bootstrap) => {
     setMemberCount(boot.memberCount)
     setUnreadCount(boot.unreadCount)
-    setState((s) => ({
-      ...s,
-      categories: boot.categories,
-      ads: boot.ads,
-      trendingGames: boot.trendingGames,
-      providers: boot.providers,
-      adRotateSec: boot.adRotateSec,
-      currentUserId: boot.me?.id ?? null,
-      users: boot.me ? [boot.me, ...s.users.filter((u) => u.id !== boot.me!.id)] : s.users,
-    }))
+    const online = Array.isArray(boot.onlineUsers) ? boot.onlineUsers : []
+    setOnlineUsers(online)
+    setOnlineCount(boot.onlineCount ?? online.length)
+    setState((s) => {
+      const map = new Map(s.users.map((u) => [u.id, u]))
+      for (const u of online) map.set(u.id, u)
+      if (boot.me) map.set(boot.me.id, boot.me)
+      return {
+        ...s,
+        categories: boot.categories,
+        ads: boot.ads,
+        trendingGames: boot.trendingGames,
+        providers: boot.providers,
+        adRotateSec: boot.adRotateSec,
+        currentUserId: boot.me?.id ?? null,
+        users: [...map.values()],
+      }
+    })
   }, [])
+
+  const refreshOnline = useCallback(async () => {
+    const res = await api<{ users: User[]; total: number }>('/api/online?limit=8')
+    if (!res.ok) return
+    applyOnline(res.users ?? [], res.total ?? 0)
+  }, [applyOnline])
 
   const refresh = useCallback(async () => {
     const res = await api<Bootstrap>('/api/bootstrap')
@@ -224,6 +254,24 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     retry()
   }, [retry])
+
+  // Keep presence warm while the tab is open (also refreshes the Online rail).
+  useEffect(() => {
+    if (!ready) return
+    const tick = () => {
+      if (document.visibilityState === 'hidden') return
+      void refreshOnline()
+    }
+    const id = window.setInterval(tick, 60_000)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') tick()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [ready, refreshOnline])
 
   const currentUser = useMemo(
     () => state.users.find((u) => u.id === state.currentUserId && !u.banned) ?? null,
@@ -518,6 +566,8 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     isMod,
     isAdmin,
     memberCount,
+    onlineUsers,
+    onlineCount,
     register,
     login,
     logout,

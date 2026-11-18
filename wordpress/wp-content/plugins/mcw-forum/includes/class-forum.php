@@ -61,6 +61,60 @@ class MCW_Forum_Forum
         return $out;
     }
 
+    /**
+     * Members with an active session seen within the last 15 minutes.
+     *
+     * @return array{users: array<int,array>, total: int}
+     */
+    public static function online_users(int $limit = 8): array
+    {
+        global $wpdb;
+        $limit = max(1, min(24, $limit));
+        $table = $wpdb->prefix . 'mcw_sessions';
+        $now = current_time('mysql');
+        $since = gmdate('Y-m-d H:i:s', current_time('timestamp') - 15 * MINUTE_IN_SECONDS);
+
+        $total = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT s.user_id)
+             FROM {$table} s
+             LEFT JOIN {$wpdb->usermeta} ban
+               ON ban.user_id = s.user_id AND ban.meta_key = 'mcw_banned'
+             WHERE s.last_seen_at >= %s
+               AND s.expires_at > %s
+               AND (ban.meta_value IS NULL OR ban.meta_value = '' OR ban.meta_value = '0')",
+            $since,
+            $now
+        ));
+
+        $ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT user_id FROM (
+                SELECT s.user_id, MAX(s.last_seen_at) AS seen
+                FROM {$table} s
+                LEFT JOIN {$wpdb->usermeta} ban
+                  ON ban.user_id = s.user_id AND ban.meta_key = 'mcw_banned'
+                WHERE s.last_seen_at >= %s
+                  AND s.expires_at > %s
+                  AND (ban.meta_value IS NULL OR ban.meta_value = '' OR ban.meta_value = '0')
+                GROUP BY s.user_id
+             ) x
+             ORDER BY seen DESC
+             LIMIT %d",
+            $since,
+            $now,
+            $limit
+        )) ?: [];
+
+        $users = [];
+        foreach ($ids as $id) {
+            $user = get_user_by('id', (int) $id);
+            if ($user instanceof WP_User) {
+                $users[] = MCW_Forum_Serialize::public_user($user);
+            }
+        }
+
+        return ['users' => $users, 'total' => $total];
+    }
+
     public static function load_bootstrap(?WP_User $viewer, string $lang = 'en'): array
     {
         global $wpdb;
@@ -80,12 +134,15 @@ class MCW_Forum_Forum
              LEFT JOIN {$wpdb->usermeta} m ON m.user_id = u.ID AND m.meta_key = 'mcw_banned'
              WHERE m.meta_value IS NULL OR m.meta_value = '' OR m.meta_value = '0'"
         );
+        $online = self::online_users(8);
         return [
             'me' => $viewer && !get_user_meta($viewer->ID, 'mcw_banned', true)
                 ? MCW_Forum_Serialize::public_user($viewer, true)
                 : null,
             'unreadCount' => $unread,
             'memberCount' => $members,
+            'onlineUsers' => $online['users'],
+            'onlineCount' => $online['total'],
             'categories' => self::load_categories($lang),
             'ads' => array_map([MCW_Forum_Serialize::class, 'map_ad'], $ads),
             'trendingGames' => array_map([MCW_Forum_Serialize::class, 'map_cms'], $games),

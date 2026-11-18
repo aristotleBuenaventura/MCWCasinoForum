@@ -353,13 +353,6 @@ button, input, textarea, select { font: inherit; }
   }
 }
 
-.xf-name-pill .uname-plate {
-  max-width: 100%;
-}
-.xf-name-pill .uname-frame-none .uname-text,
-.xf-name-pill .uname-frame-none {
-  color: inherit;
-}
 .page-title .uname-plate { font-size: inherit; height: 1.35em; }
 
 .nameplate-studio { display: grid; gap: 16px; }
@@ -1304,17 +1297,16 @@ button, input, textarea, select { font: inherit; }
   padding: 5px 0;
 }
 
-.xf-name-pill {
-  display: inline-block;
+/* Don't stretch nameplates across the grid track — size to content. */
+.xf-notable-name {
+  justify-self: start;
+  min-width: 0;
   max-width: 100%;
-  padding: 1px 7px;
-  border-radius: 2px;
   font-size: 12px;
-  font-weight: 600;
   line-height: 1.45;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.xf-notable-name .uname-plate {
+  max-width: 100%;
   vertical-align: middle;
 }
 
@@ -1322,6 +1314,7 @@ button, input, textarea, select { font: inherit; }
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--color-ink);
+  justify-self: end;
 }
 
 .xf-see-more {
