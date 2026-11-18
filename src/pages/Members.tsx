@@ -6,6 +6,7 @@ import { rankDisplayKey } from '../lib/nameplate'
 import { DocumentTitle } from '../components/DocumentTitle'
 import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
+import { readMembersCache, writeMembersCache, type MemberRow } from '../lib/membersCache'
 import { forumTime } from '../lib/utils'
 import type { User } from '../types'
 import type { MessageKey } from '../i18n/messages'
@@ -29,8 +30,6 @@ function usernameBanner(user: User) {
   return palettes[Math.abs(hash) % palettes.length]
 }
 
-type MemberRow = { user: User; messages: number; reactions: number; media: number; lastAt?: string }
-
 export function Members() {
   const { t, lang } = useLocale()
   const [params, setParams] = useSearchParams()
@@ -47,18 +46,23 @@ export function Members() {
 
   useEffect(() => {
     const key = listKey || 'messages'
+    const cached = readMembersCache(key, query)
+    if (cached) {
+      setRows(cached)
+      return
+    }
     const qs = new URLSearchParams({ key })
     if (query) qs.set('username', query)
     void api<{ members: MemberRow[] }>(`/api/members?${qs}`).then((res) => {
       if (!res.ok) return
-      setRows(
-        (res.members || []).map((row) => ({
-          ...row,
-          messages: Number(row.messages ?? 0),
-          reactions: Number(row.reactions ?? 0),
-          media: Number(row.media ?? 0),
-        })),
-      )
+      const next = (res.members || []).map((row) => ({
+        ...row,
+        messages: Number(row.messages ?? 0),
+        reactions: Number(row.reactions ?? 0),
+        media: Number(row.media ?? 0),
+      }))
+      setRows(next)
+      writeMembersCache(key, query, next)
     })
   }, [listKey, query])
 

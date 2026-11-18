@@ -1,12 +1,8 @@
 import { api } from './api'
-import type { Comment, Thread, User } from '../types'
+import { readThreadCache, writeThreadCache, type ThreadBundle } from './threadCache'
+import type { Thread } from '../types'
 
-export type ThreadBundle = {
-  thread: Thread
-  translations?: Record<string, string>
-  comments: (Comment & { author?: User | null; likeCount?: number; liked?: boolean })[]
-  commentTotal: number
-}
+export type { ThreadBundle }
 
 const inflight = new Map<string, Promise<ThreadBundle | null>>()
 
@@ -28,6 +24,13 @@ export function prefetchThread(id: string, opts?: { page?: number; limit?: numbe
   const k = key(id, page, lang)
   if (inflight.has(k)) return inflight.get(k)!
 
+  const cached = readThreadCache(id, page, lang)
+  if (cached) {
+    const hit = Promise.resolve(cached)
+    inflight.set(k, hit)
+    return hit
+  }
+
   const p = api<{
     thread: Thread
     translations?: Record<string, string>
@@ -41,12 +44,14 @@ export function prefetchThread(id: string, opts?: { page?: number; limit?: numbe
     const translations = res.thread.translations || res.translations || undefined
     const thread = translations ? { ...res.thread, translations } : res.thread
     const comments = res.comments ?? []
-    return {
+    const bundle = {
       thread,
       translations,
       comments,
       commentTotal: res.commentTotal ?? comments.length,
     } satisfies ThreadBundle
+    writeThreadCache(id, page, lang, bundle)
+    return bundle
   })
 
   inflight.set(k, p)
@@ -57,8 +62,5 @@ export function takePrefetchedThread(id: string, page = 1, lang?: string) {
   const resolvedLang =
     lang ?? (typeof window !== 'undefined' && window.location.pathname.startsWith('/bn') ? 'bn' : 'en')
   const k = key(id, page, resolvedLang)
-  const p = inflight.get(k)
-  if (!p) return null
-  // Keep in cache briefly so StrictMode double-mount can reuse
-  return p
+  return inflight.get(k) ?? null
 }

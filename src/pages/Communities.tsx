@@ -8,6 +8,7 @@ import { useForum } from '../context/ForumContext'
 import { localizeCategoryDesc, localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
+import { readCommunitiesListCache, writeCommunitiesListCache } from '../lib/communitiesListCache'
 import { prefetchCommunity } from '../lib/communityPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Thread } from '../types'
@@ -21,9 +22,16 @@ export function Communities() {
   const [latestThreads, setLatestThreads] = useState<Thread[]>([])
 
   useEffect(() => {
+    const cached = readCommunitiesListCache(lang)
+    if (cached) {
+      setLatestThreads(cached)
+      cacheThreads(cached)
+      return
+    }
     void api<{ threads: Thread[] }>('/api/threads?sort=latest&limit=40').then((res) => {
       if (!res.ok) return
       setLatestThreads(res.threads)
+      writeCommunitiesListCache(lang, res.threads)
       cacheThreads(res.threads)
     })
   }, [cacheThreads, lang])

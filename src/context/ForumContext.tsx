@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/api'
+import { readHomeExtrasCache } from '../lib/homeExtrasCache'
+import { readHomeFeedCache } from '../lib/homeFeedCache'
 import { prefetchHomeFeed } from '../lib/homeFeedPrefetch'
 import { prefetchHomeExtras } from '../lib/homeExtrasPrefetch'
 import { isBodyEmpty, persistBodyImages, textFromBody } from '../lib/postBody'
@@ -191,9 +193,17 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     setReady(false)
     void refresh()
       .then(() => {
-        // Feed first, then extras — sequential for php -S; Home can take either in-flight promise.
+        // Warm home only when session cache is cold — skip repeat network on revisit.
         const lang = window.location.pathname.startsWith('/bn') ? 'bn' : 'en'
-        void prefetchHomeFeed('latest', lang).then(() => prefetchHomeExtras(lang))
+        const feedCached = Boolean(readHomeFeedCache('latest', lang)?.length)
+        const extrasCached = Boolean(readHomeExtrasCache(lang))
+        if (!feedCached) {
+          void prefetchHomeFeed('latest', lang).then(() => {
+            if (!extrasCached) void prefetchHomeExtras(lang)
+          })
+        } else if (!extrasCached) {
+          void prefetchHomeExtras(lang)
+        }
         setReady(true)
       })
       .catch((err: Error) => {

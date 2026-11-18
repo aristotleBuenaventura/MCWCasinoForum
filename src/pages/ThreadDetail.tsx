@@ -21,6 +21,7 @@ import { localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { setActiveThreadTranslations } from '../i18n/threadTranslations'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
+import { readThreadCache } from '../lib/threadCache'
 import { prefetchThread, takePrefetchedThread } from '../lib/threadPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Comment, PostBody, Thread, User } from '../types'
@@ -154,11 +155,10 @@ export function ThreadDetail() {
     }
   }, [cachedThread, thread])
 
-  // Progressive load: paint OP from cache immediately, then hydrate via prefetch/API.
+  // Progressive load: session cache → no network; else prefetch/API once.
   useEffect(() => {
     if (!id) return
     let cancelled = false
-    setCommentsReady(false)
     setNotFound(false)
 
     const apply = (bundle: {
@@ -189,6 +189,17 @@ export function ThreadDetail() {
         navigate(`/thread/${next.id}${qs ? `?${qs}` : ''}`, { replace: true })
       }
     }
+
+    const sessionCached = readThreadCache(id, page, lang)
+    if (sessionCached) {
+      apply(sessionCached)
+      return () => {
+        cancelled = true
+        setActiveThreadTranslations(null)
+      }
+    }
+
+    setCommentsReady(false)
 
     const pending = takePrefetchedThread(id, page, lang) || prefetchThread(id, { page, limit: PER_PAGE, lang })
     void pending.then((bundle) => {

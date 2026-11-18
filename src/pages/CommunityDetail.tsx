@@ -8,6 +8,7 @@ import { LoginLink } from '../components/LoginModal'
 import { useForum } from '../context/ForumContext'
 import { localizeCategoryDesc, localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
+import { readCommunityCache } from '../lib/communityCache'
 import { prefetchCommunity, takePrefetchedCommunity } from '../lib/communityPrefetch'
 import { prefetchThread } from '../lib/threadPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
@@ -75,6 +76,17 @@ export function CommunityDetail() {
   useEffect(() => {
     if (!slug) return
     let cancelled = false
+
+    const sessionCached = readCommunityCache(slug, sort, lang)
+    if (sessionCached) {
+      setThreads(sessionCached)
+      cacheThreads(sessionCached)
+      setListReady(true)
+      return () => {
+        cancelled = true
+      }
+    }
+
     setListReady(false)
 
     const apply = (list: Thread[]) => {

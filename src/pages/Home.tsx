@@ -172,12 +172,13 @@ export function Home() {
   const [extrasReady, setExtrasReady] = useState(false)
   const members = memberCount
 
-  // Feed first, then extras. Cache + prefetch make revisits / warm loads feel instant.
+  // Feed first, then extras. Fresh session cache → no network; otherwise prefetch/API once.
   useEffect(() => {
     let cancelled = false
 
     const cachedFeed = readHomeFeedCache(tab, lang)
-    if (cachedFeed?.length) {
+    const feedFresh = Boolean(cachedFeed?.length)
+    if (feedFresh && cachedFeed) {
       setFeed(cachedFeed)
       setFeedReady(true)
       cacheThreads(cachedFeed)
@@ -188,6 +189,7 @@ export function Home() {
     }
 
     const cachedExtras = readHomeExtrasCache(lang)
+    const extrasFresh = Boolean(cachedExtras)
     if (cachedExtras) {
       setReviews(cachedExtras.reviews)
       setGuides(cachedExtras.guides)
@@ -208,28 +210,38 @@ export function Home() {
       setExtrasReady(false)
     }
 
-    void (async () => {
-      const prefetched = takePrefetchedHomeFeed(tab, lang)
-      let feedThreads: Thread[] = []
-      if (prefetched) {
-        feedThreads = await prefetched
-      } else {
-        const feedRes = await api<{ feed: { threads: Thread[] } }>(
-          `/api/home?tab=${encodeURIComponent(tab)}&sections=feed`,
-        )
-        if (cancelled) return
-        if (!feedRes.ok) {
-          setFeedReady(true)
-          return
-        }
-        feedThreads = feedRes.feed?.threads ?? []
+    if (feedFresh && extrasFresh) {
+      return () => {
+        cancelled = true
       }
-      if (cancelled) return
-      setFeed(feedThreads)
-      writeHomeFeedCache(tab, lang, feedThreads)
-      cacheThreads(feedThreads)
-      cacheUsers(feedThreads.map((t) => t.author).filter((u): u is User => Boolean(u)))
-      setFeedReady(true)
+    }
+
+    void (async () => {
+      if (!feedFresh) {
+        const prefetched = takePrefetchedHomeFeed(tab, lang)
+        let feedThreads: Thread[] = []
+        if (prefetched) {
+          feedThreads = await prefetched
+        } else {
+          const feedRes = await api<{ feed: { threads: Thread[] } }>(
+            `/api/home?tab=${encodeURIComponent(tab)}&sections=feed`,
+          )
+          if (cancelled) return
+          if (!feedRes.ok) {
+            setFeedReady(true)
+            return
+          }
+          feedThreads = feedRes.feed?.threads ?? []
+        }
+        if (cancelled) return
+        setFeed(feedThreads)
+        writeHomeFeedCache(tab, lang, feedThreads)
+        cacheThreads(feedThreads)
+        cacheUsers(feedThreads.map((t) => t.author).filter((u): u is User => Boolean(u)))
+        setFeedReady(true)
+      }
+
+      if (extrasFresh) return
 
       const prefetchedExtras = takePrefetchedHomeExtras(lang)
       const extrasRes = prefetchedExtras

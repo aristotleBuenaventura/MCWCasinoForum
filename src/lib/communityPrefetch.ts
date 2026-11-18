@@ -1,4 +1,5 @@
 import { api } from './api'
+import { readCommunityCache, writeCommunityCache } from './communityCache'
 import type { Thread } from '../types'
 
 const inflight = new Map<string, Promise<Thread[] | null>>()
@@ -26,6 +27,13 @@ export function prefetchCommunity(
   const k = key(slug, sort, lang)
   if (inflight.has(k)) return inflight.get(k)!
 
+  const cached = readCommunityCache(slug, sort, lang)
+  if (cached) {
+    const hit = Promise.resolve(cached)
+    inflight.set(k, hit)
+    return hit
+  }
+
   const sortKey = sort === 'pinned' ? 'latest' : sort
   const p = api<{ threads: Thread[] }>(
     `/api/threads?forum=${encodeURIComponent(slug)}&sort=${encodeURIComponent(sortKey)}&limit=${limit}`,
@@ -35,6 +43,7 @@ export function prefetchCommunity(
       return null
     }
     const list = sort === 'pinned' ? res.threads.filter((t) => t.pinned) : res.threads
+    writeCommunityCache(slug, sort, lang, list)
     return list
   })
 
