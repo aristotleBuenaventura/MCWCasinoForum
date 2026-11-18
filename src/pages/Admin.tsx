@@ -8,6 +8,7 @@ import { useForum } from '../context/ForumContext'
 import { timeAgo } from '../lib/utils'
 import { api } from '../lib/api'
 import { uploadImage } from '../lib/uploads'
+import { GameCatalogPicker } from '../components/GameCatalogPicker'
 import { Username } from '../components/Username'
 import { RankBadges } from '../components/RankBadges'
 import {
@@ -56,8 +57,8 @@ function ImageField({
         <div className="flex-1 min-w-0 space-y-2">
           <input
             className="input w-full"
-            type="url"
-            placeholder="https://… image URL"
+            type="text"
+            placeholder="/game-logos/… or https://…"
             value={value}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -317,8 +318,19 @@ export function Admin() {
           form={
             <form onSubmit={submitGame} className="forum-card p-4 space-y-3">
               <h2 className="font-semibold">{gameForm.id ? 'Edit game' : 'Add trending game'}</h2>
+              <GameCatalogPicker
+                onPick={(g) => {
+                  if (!g) return
+                  setGameForm((prev) => ({
+                    ...prev,
+                    title: g.name,
+                    subtitle: g.brand,
+                    imageUrl: g.logo,
+                  }))
+                }}
+              />
               <input className="input" placeholder="Title" value={gameForm.title} onChange={(e) => setGameForm({ ...gameForm, title: e.target.value })} required />
-              <input className="input" placeholder="Subtitle" value={gameForm.subtitle} onChange={(e) => setGameForm({ ...gameForm, subtitle: e.target.value })} />
+              <input className="input" placeholder="Subtitle (brand)" value={gameForm.subtitle} onChange={(e) => setGameForm({ ...gameForm, subtitle: e.target.value })} />
               <input className="input" placeholder="Link URL" value={gameForm.url} onChange={(e) => setGameForm({ ...gameForm, url: e.target.value })} />
               <input className="input" type="number" value={gameForm.order} onChange={(e) => setGameForm({ ...gameForm, order: Number(e.target.value) })} />
               <ImageField value={gameForm.imageUrl} onChange={(imageUrl) => setGameForm({ ...gameForm, imageUrl })} />
