@@ -30,8 +30,10 @@ uploadsRouter.post("/", requireAuth, async (req, res) => {
   try {
     const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: MAX_BYTES } });
     let fileBuf: Buffer | null = null;
+    let clientName = "upload.bin";
     let tooLarge = false;
-    bb.on("file", (_name, file) => {
+    bb.on("file", (_name, file, info) => {
+      clientName = String(info.filename || "upload.bin");
       const parts: Buffer[] = [];
       file.on("data", (d: Buffer) => parts.push(d));
       file.on("limit", () => {
@@ -47,7 +49,7 @@ uploadsRouter.post("/", requireAuth, async (req, res) => {
         if (tooLarge) return done(400, { ok: false, error: "File too large." });
         if (!fileBuf) return done(400, { ok: false, error: "No image uploaded." });
         try {
-          const saved = await saveLocalImage(fileBuf);
+          const saved = await saveLocalImage(fileBuf, clientName);
           done(200, { ok: true, url: saved.url, mime: saved.mime, bytes: saved.bytes });
         } catch (err) {
           done(400, { ok: false, error: err instanceof Error ? err.message : "Upload failed." });

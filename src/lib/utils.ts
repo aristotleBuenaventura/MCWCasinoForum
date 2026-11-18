@@ -63,3 +63,23 @@ export function avatarColor(seed: string) {
   for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash)
   return colors[Math.abs(hash) % colors.length]
 }
+
+/** Defense-in-depth: only http(s) or same-origin relative paths for href/src. */
+export function safeExternalHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined
+  const trimmed = url.trim()
+  if (!trimmed) return undefined
+  const lower = trimmed.toLowerCase()
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('file:')
+  ) {
+    return undefined
+  }
+  if (trimmed.startsWith('//')) return undefined
+  if (trimmed.startsWith('/')) return trimmed
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return undefined
+}

@@ -10,6 +10,9 @@ class MCW_Forum_Install
     {
         self::create_tables();
         MCW_Forum_CPT::register();
+        if (class_exists('MCW_Forum_Upload')) {
+            MCW_Forum_Upload::ensure_uploads_hardened();
+        }
         flush_rewrite_rules();
     }
 

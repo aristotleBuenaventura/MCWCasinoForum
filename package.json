@@ -9,9 +9,9 @@
     "dev:web": "vite",
     "dev:wp": "php -S 127.0.0.1:8080 -t wordpress wordpress/router.php",
     "dev:api": "npm run dev --prefix backend",
-    "wp:cli": "php wordpress/wp-cli.phar --path=wordpress",
-    "wp:seed": "php wordpress/wp-cli.phar --path=wordpress mcw seed",
-    "wp:seed:reset": "php wordpress/wp-cli.phar --path=wordpress mcw seed --reset",
+    "wp:cli": "php tools/wordpress/wp-cli.phar --path=wordpress",
+    "wp:seed": "php tools/wordpress/wp-cli.phar --path=wordpress mcw seed",
+    "wp:seed:reset": "php tools/wordpress/wp-cli.phar --path=wordpress mcw seed --reset",
     "install:all": "npm install && npm install --prefix backend",
     "db:migrate": "npm run db:migrate --prefix backend",
     "db:push": "npm run db:push --prefix backend",
@@ -21,6 +21,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:security:admin": "php wordpress/wp-content/plugins/mcw-forum/tests/admin-account-security.php",
+    "test:security:spam": "php wordpress/wp-content/plugins/mcw-forum/tests/anti-spam-content-guard.php",
+    "test:security:db": "php wordpress/wp-content/plugins/mcw-forum/tests/database-security.php",
+    "test:security:upload": "php wordpress/wp-content/plugins/mcw-forum/tests/upload-security.php",
     "test:all": "vitest run && npm test --prefix backend && playwright test"
   },
   "dependencies": {

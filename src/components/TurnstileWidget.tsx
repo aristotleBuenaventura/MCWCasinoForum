@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 
-/** Cloudflare test sitekey. The API verifies tokens with siteverify. */
-const SITEKEY = '1x00000000000000000000AA'
+/** Production sitekey from Vite env; Cloudflare test key only for local/dev. */
+const SITEKEY =
+  (import.meta.env.VITE_TURNSTILE_SITEKEY as string | undefined)?.trim() ||
+  '1x00000000000000000000AA'
 
 type TurnstileApi = {
   render: (el: HTMLElement, options: Record<string, unknown>) => string

@@ -235,7 +235,9 @@ class MCW_Forum_Translate
     public static function translate_body(array $blocks, string $from, string $to): array
     {
         if ($from === $to) {
-            return $blocks;
+            return class_exists('MCW_Forum_Content_Guard')
+                ? MCW_Forum_Content_Guard::resanitize_translated_blocks($blocks)
+                : $blocks;
         }
         $out = [];
         foreach ($blocks as $block) {
@@ -245,12 +247,21 @@ class MCW_Forum_Translate
             $type = $block['type'] ?? 'text';
             if ($type === 'text') {
                 $text = (string) ($block['text'] ?? '');
-                $out[] = array_merge($block, [
-                    'text' => $text === '' ? '' : self::translate_text($text, $from, $to),
-                ]);
-            } else {
-                // images / non-text: keep as-is
-                $out[] = $block;
+                $translated = $text === '' ? '' : self::translate_text($text, $from, $to);
+                $out[] = [
+                    'type' => 'text',
+                    'text' => sanitize_textarea_field(wp_strip_all_tags($translated)),
+                ];
+            } elseif ($type === 'image') {
+                $url = (string) ($block['url'] ?? '');
+                if (class_exists('MCW_Forum_Content_Guard')) {
+                    $checked = MCW_Forum_Content_Guard::check_url($url, 'image');
+                    if (!is_wp_error($checked)) {
+                        $out[] = ['type' => 'image', 'url' => $checked];
+                    }
+                } elseif ($url !== '') {
+                    $out[] = ['type' => 'image', 'url' => esc_url_raw($url)];
+                }
             }
         }
         return $out;

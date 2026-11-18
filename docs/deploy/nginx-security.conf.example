@@ -1,0 +1,168 @@
+# =============================================================================
+# MCW Casino Forum — nginx security snippets (EXAMPLE ONLY)
+# =============================================================================
+# Choose ONE architecture and enable the matching server block(s).
+# This file is NOT active until included in a real nginx site config and
+# reloaded (`nginx -t && systemctl reload nginx`).
+#
+# Recommended production layout (WordPress API + React SPA):
+#   - SPA static files from Vite `dist/` (or Cloudflare Pages / object storage)
+#   - WordPress document root separate; REST at /wp-json/mcw/v1/
+#   - Reverse-proxy /api/ → WordPress /wp-json/mcw/v1/  (Node backend OFF)
+#
+# Do NOT enable HSTS until HTTPS certificates are verified on the real domain.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Shared map / rate limits (http {} context)
+# ---------------------------------------------------------------------------
+# limit_req_zone $binary_remote_addr zone=mcw_auth:10m rate=5r/s;
+# limit_req_zone $binary_remote_addr zone=mcw_api:10m rate=20r/s;
+
+# ---------------------------------------------------------------------------
+# A) WordPress origin (API + uploads + media)
+# DocumentRoot = .../wordpress
+# ---------------------------------------------------------------------------
+server {
+    listen 80;
+    # listen 443 ssl http2;
+    server_name api.example.com;   # or same host as SPA with path routing
+
+    # ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    # After TLS works, uncomment HSTS (min 1 week for first enable):
+    # add_header Strict-Transport-Security "max-age=604800; includeSubDomains" always;
+
+    root /var/www/mcw/wordpress;
+    index index.php;
+    client_max_body_size 8m;
+
+    # Trust only if TLS terminates on this host or a known proxy sets these.
+    # real_ip_header X-Forwarded-For;
+    # set_real_ip_from 10.0.0.0/8;
+
+    # Baseline headers
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Content-Security-Policy "frame-ancestors 'self'" always;
+    # Optional full CSP for WP admin HTML (tune before enabling):
+    # add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'" always;
+
+    # --- Block secrets, backups, VCS, tooling ---
+    location ~* /\.(?!well-known/) {
+        deny all;
+        return 404;
+    }
+    location ~* /(wp-config\.php|wp-config-sample\.php|\.env.*|composer\.(json|lock)|package(-lock)?\.json)$ {
+        deny all;
+        return 404;
+    }
+    location ~* \.(?:sql|sqlite|bak|backup|old|orig|save|swp|dist)$ {
+        deny all;
+        return 404;
+    }
+    location ~* /(wp-cli\.phar|_[\w.-]+\.php)$ {
+        deny all;
+        return 404;
+    }
+    location ~* /(readme\.html|license\.txt)$ {
+        deny all;
+        return 404;
+    }
+
+    # --- Uploads: static only, never PHP-FPM ---
+    location ^~ /wp-content/uploads/ {
+        location ~* \.(?:php|phtml|php\d*|phar|pl|py|jsp|asp|aspx|sh|cgi|exe)$ {
+            deny all;
+            return 404;
+        }
+        try_files $uri =404;
+        access_log off;
+        expires 7d;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "public, max-age=604800" always;
+    }
+
+    # --- WordPress PHP via PHP-FPM (safe routing) ---
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        # Do not execute PHP under uploads even if a mis-ordered location matches.
+        if ($uri ~* ^/wp-content/uploads/) { return 404; }
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;  # adjust version
+        fastcgi_read_timeout 60s;
+    }
+
+    # Optional auth endpoint soft rate limit
+    # location ~ ^/wp-json/mcw/v1/auth/ {
+    #     limit_req zone=mcw_auth burst=10 nodelay;
+    #     try_files $uri /index.php?$args;
+    # }
+}
+
+# ---------------------------------------------------------------------------
+# B) React SPA static host (dist/) with API reverse-proxy to WordPress
+# Prefer this over exposing the Node `backend/` service.
+# ---------------------------------------------------------------------------
+server {
+    listen 80;
+    # listen 443 ssl http2;
+    server_name www.example.com;
+
+    root /var/www/mcw/dist;
+    index index.html;
+    client_max_body_size 8m;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options DENY always;
+    # SPA CSP — tighten script-src after measuring inline needs:
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: https: blob:; media-src 'self' https: blob:; connect-src 'self' https:; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    # Map SPA /api → WordPress REST (Node backend NOT required)
+    location /api/ {
+        # limit_req zone=mcw_api burst=40 nodelay;
+        proxy_pass http://127.0.0.1:8080/wp-json/mcw/v1/;  # or unix/php upstream
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Origin $http_origin;
+    }
+
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:8080/wp-content/uploads/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /wp-content/ {
+        proxy_pass http://127.0.0.1:8080/wp-content/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Never serve backups / env from SPA root either
+    location ~* \.(?:env|sql|bak|backup)$ {
+        deny all;
+        return 404;
+    }
+}
+
+# HTTP → HTTPS redirect (enable only after certs work)
+# server {
+#     listen 80;
+#     server_name www.example.com api.example.com;
+#     return 301 https://$host$request_uri;
+# }

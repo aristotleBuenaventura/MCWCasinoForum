@@ -221,7 +221,7 @@ class MCW_Forum_REST
             [
                 'methods' => 'POST',
                 'callback' => [self::class, 'create_thread'],
-                'permission_callback' => '__return_true',
+                'permission_callback' => [self::class, 'rest_permission_auth'],
             ],
         ]);
 
@@ -234,12 +234,12 @@ class MCW_Forum_REST
             [
                 'methods' => 'PATCH',
                 'callback' => [self::class, 'patch_thread'],
-                'permission_callback' => '__return_true',
+                'permission_callback' => [self::class, 'rest_permission_auth'],
             ],
             [
                 'methods' => 'DELETE',
                 'callback' => [self::class, 'delete_thread'],
-                'permission_callback' => '__return_true',
+                'permission_callback' => [self::class, 'rest_permission_auth'],
             ],
         ]);
 
@@ -258,43 +258,43 @@ class MCW_Forum_REST
         register_rest_route($ns, '/threads/(?P<id>[\\d]+)/bookmark', [
             'methods' => 'POST',
             'callback' => [self::class, 'toggle_bookmark'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/threads/(?P<id>[\\d]+)/pin', [
             'methods' => 'POST',
             'callback' => [self::class, 'toggle_pin'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/comments', [
             'methods' => 'POST',
             'callback' => [self::class, 'create_comment'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/comments/(?P<id>[\\d]+)', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'delete_comment'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/likes', [
             'methods' => 'POST',
             'callback' => [self::class, 'toggle_like'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/follows', [
             'methods' => 'POST',
             'callback' => [self::class, 'toggle_follow'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/reports', [
             'methods' => 'POST',
             'callback' => [self::class, 'create_report'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/search', [
@@ -318,19 +318,19 @@ class MCW_Forum_REST
         register_rest_route($ns, '/notifications', [
             'methods' => 'GET',
             'callback' => [self::class, 'notifications'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/notifications/read', [
             'methods' => 'POST',
             'callback' => [self::class, 'notifications_read'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/me', [
             'methods' => 'PATCH',
             'callback' => [self::class, 'patch_me'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/nameplate', [
@@ -342,7 +342,7 @@ class MCW_Forum_REST
         register_rest_route($ns, '/me/nameplate', [
             'methods' => 'PATCH',
             'callback' => [self::class, 'patch_nameplate'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/auth/register', [
@@ -360,170 +360,186 @@ class MCW_Forum_REST
         register_rest_route($ns, '/auth/logout', [
             'methods' => 'POST',
             'callback' => [self::class, 'logout'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/auth/password', [
             'methods' => 'POST',
             'callback' => [self::class, 'change_password'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/auth/forgot', [
             'methods' => 'POST',
-            'callback' => static fn () => ['ok' => true],
+            'callback' => [self::class, 'forgot_password'],
             'permission_callback' => '__return_true',
         ]);
 
         register_rest_route($ns, '/auth/reset', [
             'methods' => 'POST',
-            'callback' => static fn () => ['ok' => true],
+            'callback' => [self::class, 'reset_password'],
             'permission_callback' => '__return_true',
         ]);
 
         register_rest_route($ns, '/auth/verify-email', [
             'methods' => 'POST',
-            'callback' => static fn () => ['ok' => true],
+            'callback' => [self::class, 'verify_email_stub'],
             'permission_callback' => '__return_true',
         ]);
 
         register_rest_route($ns, '/auth/account', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'delete_account'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
 
         register_rest_route($ns, '/admin/stats', [
             'methods' => 'GET',
             'callback' => [self::class, 'admin_stats'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/users', [
             'methods' => 'GET',
             'callback' => [self::class, 'admin_users'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/reports', [
             'methods' => 'GET',
             'callback' => [self::class, 'admin_reports'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_mod'],
         ]);
 
         register_rest_route($ns, '/admin/nameplate', [
             [
                 'methods' => 'GET',
-                'callback' => static fn () => ['ok' => true, 'disabled' => ['frames' => [], 'emblems' => []]],
-                'permission_callback' => '__return_true',
+                'callback' => [self::class, 'admin_nameplate_get'],
+                'permission_callback' => [self::class, 'rest_permission_admin'],
             ],
             [
                 'methods' => 'POST',
-                'callback' => static fn () => ['ok' => true],
-                'permission_callback' => '__return_true',
+                'callback' => [self::class, 'admin_nameplate_post'],
+                'permission_callback' => [self::class, 'rest_permission_admin'],
             ],
         ]);
 
         register_rest_route($ns, '/admin/reset', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_reset'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/categories', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_category'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/categories/(?P<id>[\\w]+)', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'admin_delete_category'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/categories/(?P<id>[\\w]+)/featured', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_feature_category'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/ads', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_ad'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/ads/(?P<id>[\\d]+)', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'admin_delete_post'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/games', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_game'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/games/(?P<id>[\\d]+)', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'admin_delete_post'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/providers', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_provider'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/providers/(?P<id>[\\d]+)/home-top', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_provider_home_top'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/providers/(?P<id>[\\d]+)', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'admin_delete_post'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/settings/ads-rotate', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_ads_rotate'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/users/(?P<id>[\\d]+)/role', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_set_role'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/admin/users/(?P<id>[\\d]+)/nameplate', [
             'methods' => 'POST',
             'callback' => [self::class, 'admin_user_nameplate'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_admin'],
         ]);
 
         register_rest_route($ns, '/mod/reports/(?P<id>[\\w]+)/resolve', [
             'methods' => 'POST',
             'callback' => [self::class, 'resolve_report'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_mod'],
+        ]);
+
+        register_rest_route($ns, '/mod/content/(?P<id>[\\d]+)/approve', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'mod_approve_content'],
+            'permission_callback' => [self::class, 'rest_permission_mod'],
+        ]);
+        register_rest_route($ns, '/mod/content/(?P<id>[\\d]+)/hold', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'mod_hold_content'],
+            'permission_callback' => [self::class, 'rest_permission_mod'],
         ]);
 
         register_rest_route($ns, '/mod/users/(?P<id>[\\d]+)/ban', [
             'methods' => 'POST',
             'callback' => [self::class, 'ban_user'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_mod'],
         ]);
 
         register_rest_route($ns, '/uploads', [
             'methods' => 'POST',
             'callback' => [self::class, 'upload'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [self::class, 'rest_permission_auth'],
+        ]);
+        register_rest_route($ns, '/uploads/(?P<id>[\\d]+)', [
+            'methods' => 'DELETE',
+            'callback' => [self::class, 'delete_upload'],
+            'permission_callback' => [self::class, 'rest_permission_auth'],
         ]);
     }
 
@@ -546,6 +562,116 @@ class MCW_Forum_REST
             return new WP_REST_Response(['ok' => false, 'error' => 'Account banned.'], 403);
         }
         return $user;
+    }
+
+    private static function require_admin(WP_REST_Request $request): WP_User|WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        $user = self::require_user();
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        if (!MCW_Forum_Auth::is_admin_user($user) || !user_can($user, 'manage_options')) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        }
+        return $user;
+    }
+
+    private static function require_mod(WP_REST_Request $request): WP_User|WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        $user = self::require_user();
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        if (!MCW_Forum_Auth::is_mod_user($user)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        }
+        return $user;
+    }
+
+    /** REST permission_callback: authenticated non-banned forum user. */
+    public static function rest_permission_auth(): bool
+    {
+        $user = MCW_Forum_Auth::current_wp_user();
+        return $user instanceof WP_User && !get_user_meta($user->ID, 'mcw_banned', true);
+    }
+
+    /** REST permission_callback: admin with manage_options. */
+    public static function rest_permission_admin(): bool
+    {
+        $user = MCW_Forum_Auth::current_wp_user();
+        $ok = $user instanceof WP_User
+            && !get_user_meta($user->ID, 'mcw_banned', true)
+            && MCW_Forum_Auth::is_admin_user($user)
+            && user_can($user, 'manage_options');
+        if (!$ok) {
+            $route = $_SERVER['REQUEST_URI'] ?? '';
+            MCW_Forum_Security_Log::event('unauthorized_admin', [
+                'user' => $user instanceof WP_User ? (string) $user->ID : '0',
+                'route' => is_string($route) ? $route : '',
+            ]);
+        }
+        return $ok;
+    }
+
+    /** REST permission_callback: moderator or admin. */
+    public static function rest_permission_mod(): bool
+    {
+        $user = MCW_Forum_Auth::current_wp_user();
+        $ok = $user instanceof WP_User
+            && !get_user_meta($user->ID, 'mcw_banned', true)
+            && MCW_Forum_Auth::is_mod_user($user);
+        if (!$ok) {
+            $route = $_SERVER['REQUEST_URI'] ?? '';
+            MCW_Forum_Security_Log::event('unauthorized_mod', [
+                'user' => $user instanceof WP_User ? (string) $user->ID : '0',
+                'route' => is_string($route) ? $route : '',
+            ]);
+        }
+        return $ok;
+    }
+
+    private static function client_ip(): string
+    {
+        return MCW_Forum_Security_Log::client_ip();
+    }
+
+    private static function rate_limit(string $bucket, int $max, int $window_sec): ?WP_REST_Response
+    {
+        $key = 'mcw_rl_' . md5($bucket . '|' . self::client_ip());
+        $n = (int) get_transient($key);
+        if ($n >= $max) {
+            MCW_Forum_Security_Log::event('rate_limit', ['bucket' => $bucket]);
+            return new WP_REST_Response(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
+        }
+        set_transient($key, $n + 1, $window_sec);
+        return null;
+    }
+
+    /**
+     * @param mixed $blocks
+     * @return array|WP_REST_Response
+     */
+    private static function sanitize_blocks($blocks, string $context = 'post')
+    {
+        $clean = MCW_Forum_Content_Guard::sanitize_blocks($blocks, $context);
+        if (is_wp_error($clean)) {
+            return MCW_Forum_Content_Guard::error_response($clean);
+        }
+        return $clean;
+    }
+
+    private static function can_manage_post(WP_User $user, WP_Post $post): bool
+    {
+        if ((int) $post->post_author === (int) $user->ID) {
+            return true;
+        }
+        return MCW_Forum_Auth::is_mod_user($user);
     }
 
     public static function bootstrap(WP_REST_Request $request): WP_REST_Response
@@ -668,8 +794,9 @@ class MCW_Forum_REST
                 $viewer_id
             ));
             $ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
-                "SELECT thread_id FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT {$limit}",
-                $viewer_id
+                "SELECT thread_id FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+                $viewer_id,
+                $limit
             )));
             if (!$ids) {
                 return ['page' => 1, 'limit' => $limit, 'total' => $total, 'threads' => []];
@@ -942,24 +1069,49 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
+        $settings = MCW_Forum_Content_Guard::settings();
+        if ($rl = self::rate_limit('thread:' . $user->ID, (int) $settings['thread_rate_max'], (int) $settings['thread_rate_window_sec'])) {
+            return $rl;
+        }
         $body = MCW_Forum_Forum::json_body($request);
-        $title = sanitize_text_field((string) ($body['title'] ?? ''));
+        $title = MCW_Forum_Content_Guard::sanitize_title((string) ($body['title'] ?? ''));
+        if (is_wp_error($title)) {
+            return MCW_Forum_Content_Guard::error_response($title);
+        }
         $forum_id = (string) ($body['forumId'] ?? '');
-        $blocks = $body['body'] ?? [];
-        if ($title === '' || !is_array($blocks)) {
+        $raw_blocks = $body['body'] ?? [];
+        if (!is_array($raw_blocks)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'Title and body required.'], 400);
         }
-        $content = '';
-        foreach ($blocks as $b) {
-            if (($b['type'] ?? '') === 'text') {
-                $content .= ($b['text'] ?? '') . "\n\n";
+        $blocks = self::sanitize_blocks($raw_blocks);
+        if ($blocks instanceof WP_REST_Response) {
+            return $blocks;
+        }
+        $content = MCW_Forum_Content_Guard::plain_from_blocks($blocks);
+        if ($content === '' && count($blocks) === 0) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Title and body required.'], 400);
+        }
+        $hold = false;
+        $gate = MCW_Forum_Content_Guard::assert_can_write($user, 'thread', $title, $content);
+        if ($gate instanceof WP_Error) {
+            if ($gate->get_error_code() === 'mcw_hold') {
+                $hold = true;
+            } else {
+                return MCW_Forum_Content_Guard::error_response($gate);
+            }
+        }
+        $tags = [];
+        if (isset($body['tags']) && is_array($body['tags'])) {
+            $tags = MCW_Forum_Content_Guard::sanitize_tags($body['tags']);
+            if (is_wp_error($tags)) {
+                return MCW_Forum_Content_Guard::error_response($tags);
             }
         }
         $id = wp_insert_post([
             'post_type' => 'mcw_thread',
-            'post_status' => 'publish',
+            'post_status' => $hold ? 'pending' : 'publish',
             'post_title' => $title,
-            'post_content' => trim($content),
+            'post_content' => $content,
             'post_author' => $user->ID,
         ], true);
         if (is_wp_error($id)) {
@@ -970,14 +1122,27 @@ class MCW_Forum_REST
             wp_set_post_terms($id, [$term_id], 'mcw_forum');
         }
         update_post_meta($id, 'mcw_body', $blocks);
-        update_post_meta($id, 'mcw_tags', $body['tags'] ?? []);
+        update_post_meta($id, 'mcw_tags', $tags);
         update_post_meta($id, 'mcw_views', 0);
+        if ($hold) {
+            update_post_meta($id, 'mcw_held', 1);
+            update_post_meta($id, 'mcw_spam_score', (int) ($gate->get_error_data()['score'] ?? 50));
+            MCW_Forum_Content_Guard::flag_for_moderation((int) $user->ID, 'thread', (string) $id, 'auto:soft-spam-hold');
+        }
         $lang = self::request_lang($request) ?: 'en';
         // Canonical language is always EN; BN UI gets the same post with translated fields.
         self::set_post_language((int) $id, 'mcw_thread', 'en', null, null);
         update_post_meta((int) $id, 'mcw_source_lang', $lang);
         MCW_Forum_Translate::ensure_thread((int) $id);
         $post = get_post($id);
+        if ($hold) {
+            return new WP_REST_Response([
+                'ok' => true,
+                'held' => true,
+                'error' => 'Post submitted for moderation review.',
+                'thread' => null,
+            ], 202);
+        }
         $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID, $lang, false);
         $threads[0]['translations'] = self::thread_translations((int) $id);
         return new WP_REST_Response(['ok' => true, 'thread' => $threads[0]]);
@@ -996,16 +1161,37 @@ class MCW_Forum_REST
         if (!$post || $post->post_type !== 'mcw_thread') {
             return new WP_REST_Response(['ok' => false, 'error' => 'Not found.'], 404);
         }
+        if (!self::can_manage_post($user, $post)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        }
         $body = MCW_Forum_Forum::json_body($request);
         $update = ['ID' => $post->ID];
         if (!empty($body['title'])) {
-            $update['post_title'] = sanitize_text_field($body['title']);
+            $title = MCW_Forum_Content_Guard::sanitize_title((string) $body['title']);
+            if (is_wp_error($title)) {
+                return MCW_Forum_Content_Guard::error_response($title);
+            }
+            $update['post_title'] = $title;
         }
-        if (isset($body['content'])) {
-            $update['post_content'] = wp_kses_post($body['content']);
+        // Headless clients send block bodies only — never accept HTML into post_content.
+        if (isset($body['content']) && is_string($body['content'])) {
+            $plain = wp_strip_all_tags(sanitize_textarea_field($body['content']));
+            foreach (MCW_Forum_Content_Guard::extract_urls($plain) as $u) {
+                $checked = MCW_Forum_Content_Guard::check_url($u, 'link');
+                if (is_wp_error($checked)) {
+                    return MCW_Forum_Content_Guard::error_response($checked);
+                }
+            }
+            $update['post_content'] = $plain;
         }
         if (isset($body['body']) && is_array($body['body'])) {
-            update_post_meta($post->ID, 'mcw_body', $body['body']);
+            $blocks = self::sanitize_blocks($body['body']);
+            if ($blocks instanceof WP_REST_Response) {
+                return $blocks;
+            }
+            update_post_meta($post->ID, 'mcw_body', $blocks);
+            $update['post_content'] = MCW_Forum_Content_Guard::plain_from_blocks($blocks);
+            MCW_Forum_Translate::ensure_thread((int) $post->ID);
         }
         wp_update_post($update);
         return new WP_REST_Response(['ok' => true]);
@@ -1020,7 +1206,14 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
-        wp_trash_post((int) $request['id']);
+        $post = get_post((int) $request['id']);
+        if (!$post || $post->post_type !== 'mcw_thread') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Not found.'], 404);
+        }
+        if (!self::can_manage_post($user, $post)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        }
+        wp_trash_post((int) $post->ID);
         return new WP_REST_Response(['ok' => true]);
     }
 
@@ -1062,23 +1255,32 @@ class MCW_Forum_REST
         if ($thread_id === '' || !get_post((int) $thread_id)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'Thread not found.'], 404);
         }
-        $blocks = $body['body'] ?? [];
-        $content = '';
-        if (is_array($blocks)) {
-            foreach ($blocks as $b) {
-                if (($b['type'] ?? '') === 'text') {
-                    $content .= ($b['text'] ?? '') . "\n\n";
-                }
-            }
+        $settings = MCW_Forum_Content_Guard::settings();
+        if ($rl = self::rate_limit('comment:' . $user->ID, (int) $settings['comment_rate_max'], (int) $settings['comment_rate_window_sec'])) {
+            return $rl;
         }
-        if (trim($content) === '' && (!is_array($blocks) || count($blocks) === 0)) {
+        $blocks = self::sanitize_blocks($body['body'] ?? []);
+        if ($blocks instanceof WP_REST_Response) {
+            return $blocks;
+        }
+        $content = MCW_Forum_Content_Guard::plain_from_blocks($blocks);
+        if ($content === '' && count($blocks) === 0) {
             return new WP_REST_Response(['ok' => false, 'error' => 'Write something or insert an image.'], 400);
+        }
+        $hold = false;
+        $gate = MCW_Forum_Content_Guard::assert_can_write($user, 'comment', 'Reply', $content);
+        if ($gate instanceof WP_Error) {
+            if ($gate->get_error_code() === 'mcw_hold') {
+                $hold = true;
+            } else {
+                return MCW_Forum_Content_Guard::error_response($gate);
+            }
         }
         $id = wp_insert_post([
             'post_type' => 'mcw_reply',
-            'post_status' => 'publish',
+            'post_status' => $hold ? 'pending' : 'publish',
             'post_title' => 'Reply',
-            'post_content' => trim($content) ?: ' ',
+            'post_content' => $content !== '' ? $content : ' ',
             'post_author' => $user->ID,
         ], true);
         if (is_wp_error($id)) {
@@ -1088,16 +1290,36 @@ class MCW_Forum_REST
         $translations = self::thread_translations((int) $thread_id);
         $canonical = $translations['en'] ?? $thread_id;
         update_post_meta($id, 'mcw_thread_id', (string) $canonical);
-        $blocks = is_array($blocks) ? $blocks : [];
         update_post_meta($id, 'mcw_body', $blocks);
+        if ($hold) {
+            update_post_meta($id, 'mcw_held', 1);
+            update_post_meta($id, 'mcw_spam_score', (int) ($gate->get_error_data()['score'] ?? 50));
+            MCW_Forum_Content_Guard::flag_for_moderation((int) $user->ID, 'comment', (string) $id, 'auto:soft-spam-hold');
+        }
         if (!empty($body['parentId'])) {
-            update_post_meta($id, 'mcw_parent_id', (string) $body['parentId']);
+            $parent_id = (string) $body['parentId'];
+            $parent = get_post((int) $parent_id);
+            if ($parent && $parent->post_type === 'mcw_reply') {
+                $parent_thread = (string) get_post_meta($parent->ID, 'mcw_thread_id', true);
+                if ($parent_thread === '' || $parent_thread === (string) $canonical) {
+                    update_post_meta($id, 'mcw_parent_id', $parent_id);
+                }
+            }
         }
         $lang = self::request_lang($request) ?: 'en';
         // Translate once → store EN + BN for all future viewers; keep reply as EN canonical.
         MCW_Forum_Translate::ensure_comment((int) $id, $blocks, $lang);
         self::set_post_language((int) $id, 'mcw_reply', 'en', null, null);
         update_post_meta((int) $id, 'mcw_source_lang', $lang);
+
+        if ($hold) {
+            return new WP_REST_Response([
+                'ok' => true,
+                'held' => true,
+                'error' => 'Reply submitted for moderation review.',
+                'comment' => null,
+            ], 202);
+        }
 
         $post = get_post($id);
         $mapped = MCW_Forum_Serialize::map_comment($post, $lang);
@@ -1116,7 +1338,14 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
-        wp_trash_post((int) $request['id']);
+        $post = get_post((int) $request['id']);
+        if (!$post || $post->post_type !== 'mcw_reply') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Not found.'], 404);
+        }
+        if (!self::can_manage_post($user, $post)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        }
+        wp_trash_post((int) $post->ID);
         return new WP_REST_Response(['ok' => true]);
     }
 
@@ -1140,19 +1369,27 @@ class MCW_Forum_REST
         global $wpdb;
         $table = $wpdb->prefix . 'mcw_bookmarks';
         $thread_id = (int) $request['id'];
+        $thread = get_post($thread_id);
+        if (!$thread || $thread->post_type !== 'mcw_thread' || $thread->post_status !== 'publish') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Thread not found.'], 404);
+        }
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$table} WHERE user_id = %d AND thread_id = %d",
             $user->ID,
             $thread_id
         ));
         if ($existing) {
-            $wpdb->delete($table, ['id' => $existing]);
+            MCW_Forum_DB::delete($table, ['id' => (int) $existing], ['id' => '%d']);
             return new WP_REST_Response(['ok' => true, 'bookmarked' => false]);
         }
-        $wpdb->insert($table, [
+        MCW_Forum_DB::insert($table, [
             'user_id' => $user->ID,
             'thread_id' => $thread_id,
             'created_at' => current_time('mysql'),
+        ], [
+            'user_id' => '%d',
+            'thread_id' => '%d',
+            'created_at' => '%s',
         ]);
         return new WP_REST_Response(['ok' => true, 'bookmarked' => true]);
     }
@@ -1186,8 +1423,16 @@ class MCW_Forum_REST
             return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
-        $type = sanitize_text_field((string) ($body['targetType'] ?? ''));
+        $type = sanitize_key((string) ($body['targetType'] ?? ''));
         $target = sanitize_text_field((string) ($body['targetId'] ?? ''));
+        if (!in_array($type, ['thread', 'comment'], true) || $target === '' || !ctype_digit($target)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid like target.'], 400);
+        }
+        $target_post = get_post((int) $target);
+        $expected_type = $type === 'thread' ? 'mcw_thread' : 'mcw_reply';
+        if (!$target_post || $target_post->post_type !== $expected_type) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Target not found.'], 404);
+        }
         global $wpdb;
         $table = $wpdb->prefix . 'mcw_likes';
         $existing = $wpdb->get_var($wpdb->prepare(
@@ -1197,14 +1442,19 @@ class MCW_Forum_REST
             $target
         ));
         if ($existing) {
-            $wpdb->delete($table, ['id' => $existing]);
+            MCW_Forum_DB::delete($table, ['id' => (int) $existing], ['id' => '%d']);
             return new WP_REST_Response(['ok' => true, 'liked' => false]);
         }
-        $wpdb->insert($table, [
+        MCW_Forum_DB::insert($table, [
             'user_id' => $user->ID,
             'target_type' => $type,
             'target_id' => $target,
             'created_at' => current_time('mysql'),
+        ], [
+            'user_id' => '%d',
+            'target_type' => '%s',
+            'target_id' => '%s',
+            'created_at' => '%s',
         ]);
         return new WP_REST_Response(['ok' => true, 'liked' => true]);
     }
@@ -1220,6 +1470,9 @@ class MCW_Forum_REST
         }
         $body = MCW_Forum_Forum::json_body($request);
         $following = (int) ($body['userId'] ?? 0);
+        if ($following <= 0 || $following === (int) $user->ID || !get_user_by('id', $following)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid user.'], 400);
+        }
         global $wpdb;
         $table = $wpdb->prefix . 'mcw_follows';
         $existing = $wpdb->get_var($wpdb->prepare(
@@ -1228,13 +1481,17 @@ class MCW_Forum_REST
             $following
         ));
         if ($existing) {
-            $wpdb->delete($table, ['id' => $existing]);
+            MCW_Forum_DB::delete($table, ['id' => (int) $existing], ['id' => '%d']);
             return new WP_REST_Response(['ok' => true, 'following' => false]);
         }
-        $wpdb->insert($table, [
+        MCW_Forum_DB::insert($table, [
             'follower_id' => $user->ID,
             'following_id' => $following,
             'created_at' => current_time('mysql'),
+        ], [
+            'follower_id' => '%d',
+            'following_id' => '%d',
+            'created_at' => '%s',
         ]);
         return new WP_REST_Response(['ok' => true, 'following' => true]);
     }
@@ -1248,17 +1505,52 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
+        $settings = MCW_Forum_Content_Guard::settings();
+        if ($rl = self::rate_limit('report:' . $user->ID, (int) $settings['report_rate_max'], (int) $settings['report_rate_window_sec'])) {
+            return $rl;
+        }
         $body = MCW_Forum_Forum::json_body($request);
+        $target_type = sanitize_key((string) ($body['targetType'] ?? ''));
+        $target_id = sanitize_text_field((string) ($body['targetId'] ?? ''));
+        $reason = sanitize_textarea_field((string) ($body['reason'] ?? ''));
+        $reason = wp_strip_all_tags($reason);
+        if ($target_type === '' || $target_id === '') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid report target.'], 400);
+        }
+        if (!in_array($target_type, ['thread', 'comment', 'user', 'reply'], true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid report type.'], 400);
+        }
+        if (mb_strlen($reason) > 1000) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Reason is too long.'], 400);
+        }
         global $wpdb;
+        $table = $wpdb->prefix . 'mcw_reports';
+        $dup = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table} WHERE reporter_id = %d AND target_type = %s AND target_id = %s AND resolved = 0 LIMIT 1",
+            $user->ID,
+            $target_type,
+            $target_id
+        ));
+        if ($dup) {
+            return new WP_REST_Response(['ok' => true, 'duplicate' => true]);
+        }
         $id = 'rep_' . wp_generate_password(10, false, false);
-        $wpdb->insert($wpdb->prefix . 'mcw_reports', [
+        MCW_Forum_DB::insert($table, [
             'id' => $id,
             'reporter_id' => $user->ID,
-            'target_type' => sanitize_text_field((string) ($body['targetType'] ?? '')),
-            'target_id' => sanitize_text_field((string) ($body['targetId'] ?? '')),
-            'reason' => sanitize_textarea_field((string) ($body['reason'] ?? '')),
+            'target_type' => $target_type,
+            'target_id' => $target_id,
+            'reason' => $reason,
             'resolved' => 0,
             'created_at' => current_time('mysql'),
+        ], [
+            'id' => '%s',
+            'reporter_id' => '%d',
+            'target_type' => '%s',
+            'target_id' => '%s',
+            'reason' => '%s',
+            'resolved' => '%d',
+            'created_at' => '%s',
         ]);
         return new WP_REST_Response(['ok' => true]);
     }
@@ -1332,8 +1624,13 @@ class MCW_Forum_REST
         }
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}mcw_notifications WHERE user_id = %d ORDER BY created_at DESC LIMIT 50",
-            $user->ID
+            "SELECT id, user_id, type, message, link, is_read, created_at
+             FROM {$wpdb->prefix}mcw_notifications
+             WHERE user_id = %d
+             ORDER BY created_at DESC
+             LIMIT %d",
+            $user->ID,
+            50
         ));
         $notifications = array_map(static function ($r) {
             return [
@@ -1359,7 +1656,13 @@ class MCW_Forum_REST
             return $user;
         }
         global $wpdb;
-        $wpdb->update($wpdb->prefix . 'mcw_notifications', ['is_read' => 1], ['user_id' => $user->ID]);
+        MCW_Forum_DB::update(
+            $wpdb->prefix . 'mcw_notifications',
+            ['is_read' => 1],
+            ['user_id' => (int) $user->ID],
+            ['is_read' => '%d'],
+            ['user_id' => '%d']
+        );
         return new WP_REST_Response(['ok' => true]);
     }
 
@@ -1372,15 +1675,41 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
+        $settings = MCW_Forum_Content_Guard::settings();
+        if ($rl = self::rate_limit('profile:' . $user->ID, (int) $settings['profile_rate_max'], (int) $settings['profile_rate_window_sec'])) {
+            return $rl;
+        }
         $body = MCW_Forum_Forum::json_body($request);
+        // Never accept role / capability / password mass-assignment on profile patch.
+        unset($body['role'], $body['mcw_role'], $body['password'], $body['user_pass'], $body['capabilities']);
         if (isset($body['displayName'])) {
-            wp_update_user(['ID' => $user->ID, 'display_name' => sanitize_text_field($body['displayName'])]);
+            $name = sanitize_text_field((string) $body['displayName']);
+            $name = wp_strip_all_tags($name);
+            if (mb_strlen($name) > 60) {
+                return new WP_REST_Response(['ok' => false, 'error' => 'Display name is too long.'], 400);
+            }
+            if (MCW_Forum_Content_Guard::extract_urls($name)) {
+                return new WP_REST_Response(['ok' => false, 'error' => 'Display name cannot contain links.'], 400);
+            }
+            $update = MCW_Forum_DB::filter_user_update_fields([
+                'ID' => $user->ID,
+                'display_name' => $name,
+            ]);
+            wp_update_user($update);
         }
         if (isset($body['bio'])) {
-            update_user_meta($user->ID, 'mcw_bio', sanitize_textarea_field($body['bio']));
+            $bio = MCW_Forum_Content_Guard::sanitize_bio((string) $body['bio']);
+            if (is_wp_error($bio)) {
+                return MCW_Forum_Content_Guard::error_response($bio);
+            }
+            MCW_Forum_DB::update_user_meta_allowed((int) $user->ID, 'mcw_bio', $bio);
         }
         if (isset($body['avatar'])) {
-            update_user_meta($user->ID, 'mcw_avatar', esc_url_raw($body['avatar']));
+            $avatar = MCW_Forum_Content_Guard::check_url((string) $body['avatar'], 'avatar');
+            if (is_wp_error($avatar)) {
+                return MCW_Forum_Content_Guard::error_response($avatar);
+            }
+            MCW_Forum_DB::update_user_meta_allowed((int) $user->ID, 'mcw_avatar', $avatar);
         }
         return new WP_REST_Response(['ok' => true, 'user' => MCW_Forum_Serialize::public_user(get_user_by('id', $user->ID), true)]);
     }
@@ -1406,11 +1735,21 @@ class MCW_Forum_REST
             return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
+        $allowed_frames = ['none', 'gold', 'neon', 'royal'];
+        $allowed_emblems = ['none', 'crown', 'chip', 'diamond'];
         if (isset($body['frame'])) {
-            update_user_meta($user->ID, 'mcw_name_frame', sanitize_text_field($body['frame']));
+            $frame = sanitize_key((string) $body['frame']);
+            if (!in_array($frame, $allowed_frames, true)) {
+                return new WP_REST_Response(['ok' => false, 'error' => 'Invalid frame.'], 400);
+            }
+            MCW_Forum_DB::update_user_meta_allowed((int) $user->ID, 'mcw_name_frame', $frame);
         }
         if (isset($body['emblem'])) {
-            update_user_meta($user->ID, 'mcw_name_emblem', sanitize_text_field($body['emblem']));
+            $emblem = sanitize_key((string) $body['emblem']);
+            if (!in_array($emblem, $allowed_emblems, true)) {
+                return new WP_REST_Response(['ok' => false, 'error' => 'Invalid emblem.'], 400);
+            }
+            MCW_Forum_DB::update_user_meta_allowed((int) $user->ID, 'mcw_name_emblem', $emblem);
         }
         return new WP_REST_Response(['ok' => true, 'user' => MCW_Forum_Serialize::public_user(get_user_by('id', $user->ID), true)]);
     }
@@ -1419,6 +1758,13 @@ class MCW_Forum_REST
     {
         if ($resp = self::guard($request)) {
             return $resp;
+        }
+        if ($rl = self::rate_limit('register', 5, 30 * MINUTE_IN_SECONDS)) {
+            return $rl;
+        }
+        $ts = MCW_Forum_Turnstile::verify_request($request);
+        if (is_wp_error($ts)) {
+            return new WP_REST_Response(['ok' => false, 'error' => $ts->get_error_message()], (int) ($ts->get_error_data()['status'] ?? 400));
         }
         $body = MCW_Forum_Forum::json_body($request);
         $username = sanitize_user((string) ($body['username'] ?? ''));
@@ -1436,8 +1782,9 @@ class MCW_Forum_REST
             return new WP_REST_Response(['ok' => false, 'error' => $id->get_error_message()], 400);
         }
         wp_update_user(['ID' => $id, 'display_name' => $display]);
-        update_user_meta($id, 'mcw_role', 'user');
-        update_user_meta($id, 'mcw_dob', sanitize_text_field((string) ($body['dateOfBirth'] ?? '')));
+        // Ignore any client-supplied role/capability fields — always subscriber/user.
+        MCW_Forum_Auth::apply_forum_role((int) $id, 'user');
+        MCW_Forum_DB::update_user_meta_allowed((int) $id, 'mcw_dob', sanitize_text_field((string) ($body['dateOfBirth'] ?? '')));
         MCW_Forum_Auth::issue_session((int) $id, false);
         return new WP_REST_Response(['ok' => true]);
     }
@@ -1446,6 +1793,13 @@ class MCW_Forum_REST
     {
         if ($resp = self::guard($request)) {
             return $resp;
+        }
+        if ($rl = self::rate_limit('login', 10, 15 * MINUTE_IN_SECONDS)) {
+            return $rl;
+        }
+        $ts = MCW_Forum_Turnstile::verify_request($request);
+        if (is_wp_error($ts)) {
+            return new WP_REST_Response(['ok' => false, 'error' => $ts->get_error_message()], (int) ($ts->get_error_data()['status'] ?? 400));
         }
         $body = MCW_Forum_Forum::json_body($request);
         $login = sanitize_text_field((string) ($body['usernameOrEmail'] ?? $body['username'] ?? $body['email'] ?? ''));
@@ -1456,6 +1810,9 @@ class MCW_Forum_REST
             $user = get_user_by('email', $login);
         }
         if (!$user || !wp_check_password($password, $user->user_pass, $user->ID)) {
+            MCW_Forum_Security_Log::event('login_failed', [
+                'login_len' => (string) strlen($login),
+            ]);
             return new WP_REST_Response(['ok' => false, 'error' => 'Invalid username/email or password.'], 401);
         }
         if (get_user_meta($user->ID, 'mcw_banned', true)) {
@@ -1474,6 +1831,102 @@ class MCW_Forum_REST
         return new WP_REST_Response(['ok' => true]);
     }
 
+    /**
+     * Always returns a generic success to avoid account enumeration.
+     * Token is stored hashed; plaintext is only emailed when mail works.
+     */
+    public static function forgot_password(WP_REST_Request $request): WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        if ($rl = self::rate_limit('forgot', 5, 30 * MINUTE_IN_SECONDS)) {
+            return $rl;
+        }
+        $ts = MCW_Forum_Turnstile::verify_request($request);
+        if (is_wp_error($ts)) {
+            return new WP_REST_Response(['ok' => false, 'error' => $ts->get_error_message()], (int) ($ts->get_error_data()['status'] ?? 400));
+        }
+        $body = MCW_Forum_Forum::json_body($request);
+        $email = sanitize_email((string) ($body['email'] ?? ''));
+        $generic = new WP_REST_Response([
+            'ok' => true,
+            'message' => 'If an account exists for that email, a reset link will be sent.',
+        ]);
+        if ($email === '' || !is_email($email)) {
+            return $generic;
+        }
+        $user = get_user_by('email', $email);
+        if (!$user) {
+            return $generic;
+        }
+        $token = bin2hex(random_bytes(32));
+        update_user_meta($user->ID, 'mcw_reset_hash', hash('sha256', $token));
+        update_user_meta($user->ID, 'mcw_reset_expires', time() + HOUR_IN_SECONDS);
+        $link = home_url('/?mcw_reset=1&uid=' . (int) $user->ID . '&token=' . rawurlencode($token));
+        // Prefer SPA origin when configured.
+        if (defined('MCW_CORS_ORIGIN') && is_string(MCW_CORS_ORIGIN) && MCW_CORS_ORIGIN !== '') {
+            $link = rtrim(MCW_CORS_ORIGIN, '/') . '/reset-password?uid=' . (int) $user->ID . '&token=' . rawurlencode($token);
+        }
+        $sent = wp_mail(
+            $user->user_email,
+            'Password reset',
+            "Use this link within one hour to reset your password:\n\n{$link}\n\nIf you did not request this, ignore this email."
+        );
+        if (!$sent) {
+            MCW_Forum_Security_Log::event('password_reset_mail_failed', ['user' => (string) (int) $user->ID]);
+        }
+        return $generic;
+    }
+
+    public static function reset_password(WP_REST_Request $request): WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        if ($rl = self::rate_limit('reset', 10, 30 * MINUTE_IN_SECONDS)) {
+            return $rl;
+        }
+        $body = MCW_Forum_Forum::json_body($request);
+        $uid = (int) ($body['userId'] ?? $body['uid'] ?? 0);
+        $token = (string) ($body['token'] ?? '');
+        $password = (string) ($body['password'] ?? $body['newPassword'] ?? '');
+        if ($uid <= 0 || $token === '' || strlen($password) < 8) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid reset request.'], 400);
+        }
+        $user = get_user_by('id', $uid);
+        if (!$user) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid or expired reset token.'], 400);
+        }
+        $hash = (string) get_user_meta($uid, 'mcw_reset_hash', true);
+        $expires = (int) get_user_meta($uid, 'mcw_reset_expires', true);
+        if ($hash === '' || $expires < time() || !hash_equals($hash, hash('sha256', $token))) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid or expired reset token.'], 400);
+        }
+        // Single-use: clear before setting password.
+        delete_user_meta($uid, 'mcw_reset_hash');
+        delete_user_meta($uid, 'mcw_reset_expires');
+        wp_set_password($password, $uid);
+        MCW_Forum_Auth::invalidate_user_sessions($uid);
+        MCW_Forum_Security_Log::event('password_reset_completed', ['user' => (string) $uid]);
+        return new WP_REST_Response(['ok' => true]);
+    }
+
+    /** Email verification not fully wired — rate-limited stub, no false success claims. */
+    public static function verify_email_stub(WP_REST_Request $request): WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        if ($rl = self::rate_limit('verify_email', 10, HOUR_IN_SECONDS)) {
+            return $rl;
+        }
+        return new WP_REST_Response([
+            'ok' => false,
+            'error' => 'Email verification is not enabled on this deployment.',
+        ], 501);
+    }
+
     public static function change_password(WP_REST_Request $request): WP_REST_Response
     {
         if ($resp = self::guard($request)) {
@@ -1486,10 +1939,15 @@ class MCW_Forum_REST
         $body = MCW_Forum_Forum::json_body($request);
         $current = (string) ($body['currentPassword'] ?? '');
         $next = (string) ($body['newPassword'] ?? $body['password'] ?? '');
+        if (strlen($next) < 8) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Password must be at least 8 characters.'], 400);
+        }
         if (!wp_check_password($current, $user->user_pass, $user->ID)) {
             return new WP_REST_Response(['ok' => false, 'error' => 'Current password incorrect.'], 400);
         }
+        // Only the authenticated user can change their own password (no target user id accepted).
         wp_set_password($next, $user->ID);
+        MCW_Forum_Auth::invalidate_user_sessions($user->ID);
         MCW_Forum_Auth::issue_session($user->ID, false);
         return new WP_REST_Response(['ok' => true]);
     }
@@ -1503,15 +1961,23 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
+        $body = MCW_Forum_Forum::json_body($request);
+        $password = (string) ($body['password'] ?? $body['currentPassword'] ?? '');
+        if ($password === '' || !wp_check_password($password, $user->user_pass, $user->ID)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Password required.'], 400);
+        }
+        if (MCW_Forum_Auth::is_admin_user($user)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Admin accounts cannot self-delete via API.'], 403);
+        }
         require_once ABSPATH . 'wp-admin/includes/user.php';
         MCW_Forum_Auth::clear_session();
         wp_delete_user($user->ID);
         return new WP_REST_Response(['ok' => true]);
     }
 
-    public static function admin_stats(): WP_REST_Response
+    public static function admin_stats(WP_REST_Request $request): WP_REST_Response
     {
-        $user = self::require_user();
+        $user = self::require_admin($request);
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
@@ -1526,8 +1992,12 @@ class MCW_Forum_REST
         ]);
     }
 
-    public static function admin_users(): WP_REST_Response
+    public static function admin_users(WP_REST_Request $request): WP_REST_Response
     {
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
         $users = get_users(['number' => 200]);
         return new WP_REST_Response([
             'ok' => true,
@@ -1535,10 +2005,22 @@ class MCW_Forum_REST
         ]);
     }
 
-    public static function admin_reports(): WP_REST_Response
+    public static function admin_reports(WP_REST_Request $request): WP_REST_Response
     {
+        $user = self::require_mod($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
         global $wpdb;
-        $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}mcw_reports ORDER BY created_at DESC LIMIT 100");
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, reporter_id, target_type, target_id, reason, resolved, created_at
+                 FROM {$wpdb->prefix}mcw_reports
+                 ORDER BY created_at DESC
+                 LIMIT %d",
+                100
+            )
+        );
         $reports = array_map(static function ($r) {
             return [
                 'id' => $r->id,
@@ -1553,17 +2035,42 @@ class MCW_Forum_REST
         return new WP_REST_Response(['ok' => true, 'reports' => $reports]);
     }
 
-    public static function admin_reset(WP_REST_Request $request): WP_REST_Response
+    public static function admin_nameplate_get(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
-        }
-        $user = self::require_user();
+        $user = self::require_admin($request);
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
-        if (MCW_Forum_Auth::role_of($user) !== 'admin') {
-            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        return new WP_REST_Response([
+            'ok' => true,
+            'disabled' => [
+                'frames' => array_values((array) get_option('mcw_disabled_frames', [])),
+                'emblems' => array_values((array) get_option('mcw_disabled_emblems', [])),
+            ],
+        ]);
+    }
+
+    public static function admin_nameplate_post(WP_REST_Request $request): WP_REST_Response
+    {
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        $body = MCW_Forum_Forum::json_body($request);
+        if (isset($body['frames']) && is_array($body['frames'])) {
+            update_option('mcw_disabled_frames', array_values(array_map('sanitize_key', $body['frames'])));
+        }
+        if (isset($body['emblems']) && is_array($body['emblems'])) {
+            update_option('mcw_disabled_emblems', array_values(array_map('sanitize_key', $body['emblems'])));
+        }
+        return new WP_REST_Response(['ok' => true]);
+    }
+
+    public static function admin_reset(WP_REST_Request $request): WP_REST_Response
+    {
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         MCW_Forum_Seed::run(true);
         return new WP_REST_Response(['ok' => true]);
@@ -1571,8 +2078,9 @@ class MCW_Forum_REST
 
     public static function admin_category(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         $result = wp_insert_term(sanitize_text_field($body['name'] ?? 'Forum'), 'mcw_forum', [
@@ -1590,8 +2098,9 @@ class MCW_Forum_REST
 
     public static function admin_delete_category(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $term_id = MCW_Forum_Forum::term_id_from_forum_param((string) $request['id']);
         if ($term_id) {
@@ -1602,8 +2111,9 @@ class MCW_Forum_REST
 
     public static function admin_feature_category(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $term_id = MCW_Forum_Forum::term_id_from_forum_param((string) $request['id']);
         if ($term_id) {
@@ -1615,8 +2125,9 @@ class MCW_Forum_REST
 
     public static function admin_ad(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         $id = wp_insert_post([
@@ -1625,16 +2136,25 @@ class MCW_Forum_REST
             'post_title' => sanitize_text_field($body['title'] ?? 'Ad'),
         ]);
         update_post_meta($id, 'mcw_slot', sanitize_text_field($body['slot'] ?? 'sidebar'));
-        update_post_meta($id, 'mcw_image_url', esc_url_raw($body['imageUrl'] ?? ''));
-        update_post_meta($id, 'mcw_url', esc_url_raw($body['url'] ?? ''));
+        $image = self::admin_safe_url((string) ($body['imageUrl'] ?? ''), 'image');
+        if ($image instanceof WP_REST_Response) {
+            return $image;
+        }
+        $link = self::admin_safe_url((string) ($body['url'] ?? ''), 'cms');
+        if ($link instanceof WP_REST_Response) {
+            return $link;
+        }
+        update_post_meta($id, 'mcw_image_url', $image);
+        update_post_meta($id, 'mcw_url', $link);
         update_post_meta($id, 'mcw_order', (int) ($body['order'] ?? 0));
         return new WP_REST_Response(['ok' => true]);
     }
 
     public static function admin_game(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         $id = wp_insert_post([
@@ -1643,16 +2163,25 @@ class MCW_Forum_REST
             'post_title' => sanitize_text_field($body['title'] ?? 'Game'),
         ]);
         update_post_meta($id, 'mcw_subtitle', sanitize_text_field($body['subtitle'] ?? ''));
-        update_post_meta($id, 'mcw_image_url', esc_url_raw($body['imageUrl'] ?? ''));
-        update_post_meta($id, 'mcw_url', esc_url_raw($body['url'] ?? ''));
+        $image = self::admin_safe_url((string) ($body['imageUrl'] ?? ''), 'image');
+        if ($image instanceof WP_REST_Response) {
+            return $image;
+        }
+        $link = self::admin_safe_url((string) ($body['url'] ?? ''), 'cms');
+        if ($link instanceof WP_REST_Response) {
+            return $link;
+        }
+        update_post_meta($id, 'mcw_image_url', $image);
+        update_post_meta($id, 'mcw_url', $link);
         update_post_meta($id, 'mcw_order', (int) ($body['order'] ?? 0));
         return new WP_REST_Response(['ok' => true]);
     }
 
     public static function admin_provider(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         $existing_id = isset($body['id']) ? (int) $body['id'] : 0;
@@ -1675,10 +2204,16 @@ class MCW_Forum_REST
             return new WP_REST_Response(['ok' => false, 'error' => 'Could not save provider.'], 500);
         }
         update_post_meta($id, 'mcw_subtitle', sanitize_text_field($body['subtitle'] ?? ''));
-        $image = (string) ($body['imageUrl'] ?? '');
-        update_post_meta($id, 'mcw_image_url', $image === '' || str_starts_with($image, '/') ? $image : esc_url_raw($image));
-        $url = (string) ($body['url'] ?? '');
-        update_post_meta($id, 'mcw_url', $url === '' || str_starts_with($url, '/') ? $url : esc_url_raw($url));
+        $image = self::admin_safe_url((string) ($body['imageUrl'] ?? ''), 'image');
+        if ($image instanceof WP_REST_Response) {
+            return $image;
+        }
+        $url = self::admin_safe_url((string) ($body['url'] ?? ''), 'cms');
+        if ($url instanceof WP_REST_Response) {
+            return $url;
+        }
+        update_post_meta($id, 'mcw_image_url', $image);
+        update_post_meta($id, 'mcw_url', $url);
         update_post_meta($id, 'mcw_rating', (float) ($body['rating'] ?? 4.5));
         update_post_meta($id, 'mcw_order', (int) ($body['order'] ?? 0));
         if (array_key_exists('homeTop', $body)) {
@@ -1692,8 +2227,9 @@ class MCW_Forum_REST
 
     public static function admin_provider_home_top(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         $id = (int) $request['id'];
@@ -1735,17 +2271,24 @@ class MCW_Forum_REST
 
     public static function admin_delete_post(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
-        wp_trash_post((int) $request['id']);
+        $id = (int) $request['id'];
+        $type = get_post_type($id);
+        if (!in_array($type, ['mcw_ad', 'mcw_game', 'mcw_provider'], true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Not found.'], 404);
+        }
+        wp_trash_post($id);
         return new WP_REST_Response(['ok' => true]);
     }
 
     public static function admin_ads_rotate(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         update_option('mcw_ad_rotate_sec', max(3, (int) ($body['sec'] ?? 8)));
@@ -1754,50 +2297,166 @@ class MCW_Forum_REST
 
     public static function admin_set_role(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $actor = self::require_admin($request);
+        if ($actor instanceof WP_REST_Response) {
+            return $actor;
         }
         $body = MCW_Forum_Forum::json_body($request);
-        update_user_meta((int) $request['id'], 'mcw_role', sanitize_text_field($body['role'] ?? 'user'));
+        $role = sanitize_key((string) ($body['role'] ?? 'user'));
+        if (!in_array($role, ['user', 'moderator', 'admin'], true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid role.'], 400);
+        }
+        $target_id = (int) $request['id'];
+        $target = get_user_by('id', $target_id);
+        if ($target_id <= 0 || !$target instanceof WP_User) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'User not found.'], 404);
+        }
+        if ($target_id === (int) $actor->ID && $role !== 'admin') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Cannot demote your own admin account.'], 400);
+        }
+        $was_admin = MCW_Forum_Auth::is_admin_user($target);
+        if ($was_admin && $role !== 'admin' && MCW_Forum_Auth::count_forum_admins() <= 1) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Cannot demote the last administrator.'], 400);
+        }
+        if (!MCW_Forum_Auth::apply_forum_role($target_id, $role)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Could not update role.'], 500);
+        }
+        // Force re-login after privilege change (does not touch other admins' accounts).
+        MCW_Forum_Auth::invalidate_user_sessions($target_id);
+        MCW_Forum_Security_Log::event('role_change', [
+            'actor' => (string) (int) $actor->ID,
+            'target' => (string) $target_id,
+            'role' => $role,
+        ]);
         return new WP_REST_Response(['ok' => true]);
     }
 
     public static function admin_user_nameplate(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_admin($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
         }
         $body = MCW_Forum_Forum::json_body($request);
         $id = (int) $request['id'];
+        if ($id <= 0 || !get_user_by('id', $id)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'User not found.'], 404);
+        }
         if (isset($body['membership'])) {
-            update_user_meta($id, 'mcw_membership', sanitize_text_field($body['membership']));
+            $m = sanitize_key((string) $body['membership']);
+            if (in_array($m, ['free', 'member', 'vip', 'premium', 'elite'], true)) {
+                MCW_Forum_DB::update_user_meta_allowed($id, 'mcw_membership', $m);
+            }
         }
         if (isset($body['frame'])) {
-            update_user_meta($id, 'mcw_name_frame', sanitize_text_field($body['frame']));
+            MCW_Forum_DB::update_user_meta_allowed($id, 'mcw_name_frame', sanitize_key((string) $body['frame']));
         }
         if (isset($body['emblem'])) {
-            update_user_meta($id, 'mcw_name_emblem', sanitize_text_field($body['emblem']));
+            MCW_Forum_DB::update_user_meta_allowed($id, 'mcw_name_emblem', sanitize_key((string) $body['emblem']));
         }
+        return new WP_REST_Response(['ok' => true]);
+    }
+
+    /**
+     * Optional empty URL helper for CMS fields (ads/games/providers).
+     *
+     * @return string|WP_REST_Response
+     */
+    private static function admin_safe_url(string $url, string $kind)
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+        $checked = MCW_Forum_Content_Guard::check_url($url, $kind === 'image' ? 'image' : 'cms');
+        if (is_wp_error($checked)) {
+            return MCW_Forum_Content_Guard::error_response($checked);
+        }
+        return $checked;
+    }
+
+    /** Publish held/pending UGC without deleting anything. */
+    public static function mod_approve_content(WP_REST_Request $request): WP_REST_Response
+    {
+        $user = self::require_mod($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        $post = get_post((int) $request['id']);
+        if (!$post || !in_array($post->post_type, ['mcw_thread', 'mcw_reply'], true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Not found.'], 404);
+        }
+        wp_update_post(['ID' => $post->ID, 'post_status' => 'publish']);
+        delete_post_meta($post->ID, 'mcw_held');
+        return new WP_REST_Response(['ok' => true]);
+    }
+
+    /** Soft-hide UGC from public listings (pending) — does not delete. */
+    public static function mod_hold_content(WP_REST_Request $request): WP_REST_Response
+    {
+        $user = self::require_mod($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        $post = get_post((int) $request['id']);
+        if (!$post || !in_array($post->post_type, ['mcw_thread', 'mcw_reply'], true)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Not found.'], 404);
+        }
+        wp_update_post(['ID' => $post->ID, 'post_status' => 'pending']);
+        update_post_meta($post->ID, 'mcw_held', 1);
+        MCW_Forum_Content_Guard::flag_for_moderation((int) $user->ID, $post->post_type === 'mcw_reply' ? 'comment' : 'thread', (string) $post->ID, 'auto:mod-hold');
         return new WP_REST_Response(['ok' => true]);
     }
 
     public static function resolve_report(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $user = self::require_mod($request);
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        $report_id = sanitize_text_field((string) $request['id']);
+        if ($report_id === '' || !preg_match('/^rep_[\w-]+$/', $report_id)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Invalid report id.'], 400);
         }
         global $wpdb;
-        $wpdb->update($wpdb->prefix . 'mcw_reports', ['resolved' => 1], ['id' => sanitize_text_field((string) $request['id'])]);
+        MCW_Forum_DB::update(
+            $wpdb->prefix . 'mcw_reports',
+            ['resolved' => 1],
+            ['id' => $report_id],
+            ['resolved' => '%d'],
+            ['id' => '%s']
+        );
         return new WP_REST_Response(['ok' => true]);
     }
 
     public static function ban_user(WP_REST_Request $request): WP_REST_Response
     {
-        if ($resp = self::guard($request)) {
-            return $resp;
+        $actor = self::require_mod($request);
+        if ($actor instanceof WP_REST_Response) {
+            return $actor;
         }
         $body = MCW_Forum_Forum::json_body($request);
-        update_user_meta((int) $request['id'], 'mcw_banned', !isset($body['banned']) || $body['banned'] ? 1 : 0);
+        $id = (int) $request['id'];
+        $target = get_user_by('id', $id);
+        if (!$target) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'User not found.'], 404);
+        }
+        if (MCW_Forum_Auth::is_admin_user($target)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Cannot ban administrators.'], 403);
+        }
+        if ($id === (int) $actor->ID) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Cannot ban yourself.'], 400);
+        }
+        $banned = !isset($body['banned']) || $body['banned'] ? 1 : 0;
+        MCW_Forum_DB::update_user_meta_allowed($id, 'mcw_banned', $banned);
+        if ($banned) {
+            MCW_Forum_Auth::invalidate_user_sessions($id);
+        }
+        MCW_Forum_Security_Log::event('ban', [
+            'actor' => (string) (int) $actor->ID,
+            'target' => (string) $id,
+            'banned' => $banned ? '1' : '0',
+        ]);
         return new WP_REST_Response(['ok' => true]);
     }
 
@@ -1810,10 +2469,21 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
+        if ($rl = self::rate_limit('upload:' . $user->ID, 20, HOUR_IN_SECONDS)) {
+            return $rl;
+        }
         $files = $request->get_file_params();
-        if (empty($files['file'])) {
+        if (empty($files['file']) || !is_array($files['file'])) {
             return new WP_REST_Response(['ok' => false, 'error' => 'No file.'], 400);
         }
+        $validated = MCW_Forum_Upload::validate_image_upload($files['file']);
+        if (is_wp_error($validated)) {
+            return new WP_REST_Response(['ok' => false, 'error' => $validated->get_error_message()], (int) ($validated->get_error_data()['status'] ?? 400));
+        }
+
+        // Force randomized safe filename before WordPress stores the file (anti-overwrite / traversal).
+        $_FILES['file']['name'] = $validated['safe_name'];
+
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -1821,6 +2491,54 @@ class MCW_Forum_REST
         if (is_wp_error($attachment_id)) {
             return new WP_REST_Response(['ok' => false, 'error' => $attachment_id->get_error_message()], 400);
         }
-        return new WP_REST_Response(['ok' => true, 'url' => wp_get_attachment_url($attachment_id)]);
+
+        $attached = get_attached_file((int) $attachment_id);
+        if (!$attached || !MCW_Forum_Upload::path_is_in_uploads($attached)) {
+            wp_delete_attachment((int) $attachment_id, true);
+            return new WP_REST_Response(['ok' => false, 'error' => 'Upload path rejected.'], 400);
+        }
+        // Re-check magic on the stored file (defense in depth).
+        if (MCW_Forum_Upload::detect_image_magic($attached) === null) {
+            wp_delete_attachment((int) $attachment_id, true);
+            return new WP_REST_Response(['ok' => false, 'error' => 'Stored file failed image verification.'], 400);
+        }
+
+        update_post_meta((int) $attachment_id, 'mcw_uploader_id', (int) $user->ID);
+        wp_update_post([
+            'ID' => (int) $attachment_id,
+            'post_author' => (int) $user->ID,
+        ]);
+
+        return new WP_REST_Response([
+            'ok' => true,
+            'id' => (string) $attachment_id,
+            'url' => wp_get_attachment_url((int) $attachment_id),
+            'mime' => $validated['mime'],
+        ]);
+    }
+
+    /** Authorized deletion only — never exposes arbitrary filesystem deletes. */
+    public static function delete_upload(WP_REST_Request $request): WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        $user = self::require_user();
+        if ($user instanceof WP_REST_Response) {
+            return $user;
+        }
+        $id = (int) $request['id'];
+        if ($id <= 0 || !MCW_Forum_Upload::can_manage_attachment($user, $id)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Forbidden.'], 403);
+        }
+        $path = get_attached_file($id);
+        if ($path && !MCW_Forum_Upload::path_is_in_uploads($path)) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Refusing to delete file outside uploads.'], 403);
+        }
+        $deleted = wp_delete_attachment($id, true);
+        if (!$deleted) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Could not delete attachment.'], 400);
+        }
+        return new WP_REST_Response(['ok' => true]);
     }
 }

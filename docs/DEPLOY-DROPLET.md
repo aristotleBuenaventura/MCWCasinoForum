@@ -1,5 +1,11 @@
 # MCW Casino Forum — DigitalOcean Droplet
 
+> **Superseded for WordPress-headless production.**  
+> The SPA default path uses WordPress REST (`/api` → `/wp-json/mcw/v1`), not the Node `backend` on PM2.  
+> Use instead: `docs/deploy/PRODUCTION_SECURITY_CONFIGURATION.md`,  
+> `docs/deploy/PRODUCTION_DEPLOYMENT_CHECKLIST.md`, and the nginx/Apache examples under `docs/deploy/`.  
+> This document remains as a historical Node+PM2 layout reference only.
+
 Same layout as MR Database Tool: Nginx + PM2 + local MySQL + Certbot.
 
 App path: `/var/www/MCWCasinoForum`

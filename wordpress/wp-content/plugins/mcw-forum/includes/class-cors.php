@@ -48,5 +48,12 @@ class MCW_Forum_CORS
             header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
             header('Vary: Origin');
         }
+        // Baseline browser hardening (API + SPA responses through this WP stack).
+        if (!headers_sent()) {
+            header('X-Content-Type-Options: nosniff');
+            header('Referrer-Policy: strict-origin-when-cross-origin');
+            header('X-Frame-Options: SAMEORIGIN');
+            header("Content-Security-Policy: frame-ancestors 'self'");
+        }
     }
 }

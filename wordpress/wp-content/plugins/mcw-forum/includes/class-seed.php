@@ -25,7 +25,7 @@ class MCW_Forum_Seed
             $existing = get_user_by('login', $u['login']);
             if ($existing) {
                 $ids[$u['login']] = $existing->ID;
-                update_user_meta($existing->ID, 'mcw_role', $u['role']);
+                MCW_Forum_Auth::apply_forum_role((int) $existing->ID, $u['role']);
                 update_user_meta($existing->ID, 'mcw_bio', $u['bio']);
                 continue;
             }
@@ -34,7 +34,7 @@ class MCW_Forum_Seed
                 continue;
             }
             wp_update_user(['ID' => $id, 'display_name' => $u['name']]);
-            update_user_meta($id, 'mcw_role', $u['role']);
+            MCW_Forum_Auth::apply_forum_role((int) $id, $u['role']);
             update_user_meta($id, 'mcw_bio', $u['bio']);
             update_user_meta($id, 'mcw_membership', 'free');
             update_user_meta($id, 'mcw_name_frame', 'none');
@@ -42,10 +42,10 @@ class MCW_Forum_Seed
             $ids[$u['login']] = $id;
         }
 
-        // Ensure WP admin also has mcw admin role
+        // Ensure WP admin also has mcw admin role + manage_options
         $wp_admin = get_user_by('login', 'admin');
         if ($wp_admin) {
-            update_user_meta($wp_admin->ID, 'mcw_role', 'admin');
+            MCW_Forum_Auth::apply_forum_role((int) $wp_admin->ID, 'admin');
             $ids['admin'] = $wp_admin->ID;
         }
 

@@ -25,8 +25,8 @@ export function MediaUpload({ mediaUrl, mediaType, onChange, onBusyChange, enabl
 
   const onFile = async (file: File | undefined) => {
     if (!file) return
-    const isImage = file.type.startsWith('image/')
-    if (!isImage) {
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+    if (!allowed.has(file.type)) {
       toast('Please choose a JPEG, PNG, GIF, or WebP image.')
       return
     }
@@ -75,11 +75,11 @@ export function MediaUpload({ mediaUrl, mediaType, onChange, onBusyChange, enabl
           </button>
         )}
       </div>
-      <p className="text-[11px] prose-muted">PNG, JPG, GIF, or MP4. You can also paste or drop a file here.</p>
+      <p className="text-[11px] prose-muted">PNG, JPG, GIF, or WebP. You can also paste or drop a file here.</p>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,video/*"
+        accept="image/jpeg,image/png,image/gif,image/webp"
         className="hidden"
         onChange={(e) => onFile(e.target.files?.[0])}
       />

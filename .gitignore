@@ -28,6 +28,8 @@ wordpress/**
 
 # Local WPML / installer helpers (may contain download tokens)
 wordpress/_*.php
+tools/wordpress/helpers/
+tools/wordpress/wp-cli.phar
 wordpress-latest.zip
 
 # Editor directories and files

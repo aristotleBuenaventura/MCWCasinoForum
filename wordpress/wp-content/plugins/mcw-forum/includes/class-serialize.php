@@ -17,7 +17,6 @@ class MCW_Forum_Serialize
             'id' => (string) $user->ID,
             'username' => $user->user_login,
             'email' => $self ? $user->user_email : '',
-            'password' => '',
             'displayName' => $user->display_name ?: $user->user_login,
             'bio' => (string) get_user_meta($user->ID, 'mcw_bio', true),
             'avatar' => (string) get_user_meta($user->ID, 'mcw_avatar', true),

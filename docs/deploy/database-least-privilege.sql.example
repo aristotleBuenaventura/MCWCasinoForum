@@ -1,0 +1,62 @@
+-- =============================================================================
+-- MCW Casino Forum — MySQL/MariaDB least-privilege application user (EXAMPLE)
+-- =============================================================================
+-- DO NOT run against production without review. Replace placeholders.
+-- Never grant FILE, SUPER, SHUTDOWN, PROCESS (broad), GRANT OPTION, or *.* ALL.
+--
+-- Application needs (WordPress + mcw-forum plugin):
+--   - SELECT, INSERT, UPDATE, DELETE on all tables in the app database
+--   - CREATE, ALTER, INDEX, DROP on that database only (plugin/core upgrades,
+--     dbDelta for mcw_* tables, WP core updates)
+--   - CREATE TEMPORARY TABLES, LOCK TABLES (WP batch operations)
+--   - REFERENCES (InnoDB FKs if used)
+--
+-- Plugin-owned tables (prefix example wp_):
+--   wp_mcw_sessions, wp_mcw_likes, wp_mcw_follows, wp_mcw_bookmarks,
+--   wp_mcw_notifications, wp_mcw_reports
+-- Plus standard WordPress tables (posts, users, usermeta, options, ...).
+-- =============================================================================
+
+-- 1) Create dedicated database (if not already present)
+CREATE DATABASE IF NOT EXISTS `mcwforum`
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+-- 2) Create application user (localhost only — adjust host for remote DB carefully)
+CREATE USER IF NOT EXISTS 'mcw_app'@'localhost'
+  IDENTIFIED BY 'REPLACE_WITH_LONG_RANDOM_PASSWORD';
+
+-- 3) Grant schema-scoped privileges only
+GRANT
+  SELECT, INSERT, UPDATE, DELETE,
+  CREATE, ALTER, INDEX, DROP,
+  CREATE TEMPORARY TABLES, LOCK TABLES, REFERENCES
+ON `mcwforum`.*
+TO 'mcw_app'@'localhost';
+
+FLUSH PRIVILEGES;
+
+-- 4) Point WordPress wp-config.php at this user:
+--    DB_NAME=mcwforum
+--    DB_USER=mcw_app
+--    DB_PASSWORD=...
+--    DB_HOST=localhost
+
+-- =============================================================================
+-- Review existing grants (run as admin; read-only inspection)
+-- =============================================================================
+-- SHOW GRANTS FOR 'mcw_app'@'localhost';
+-- SHOW GRANTS FOR CURRENT_USER();
+--
+-- Reject / revoke if you see any of:
+--   GRANT ... ON *.* ...
+--   FILE, SUPER, GRANT OPTION, CREATE USER, RELOAD, SHUTDOWN
+--
+-- Example revoke of over-broad grants (DANGEROUS if wrong user — review first):
+-- REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'legacy_rootish'@'localhost';
+-- (Then re-GRANT the limited set above.)
+
+-- Optional: separate read-only reporting user
+-- CREATE USER IF NOT EXISTS 'mcw_ro'@'localhost' IDENTIFIED BY 'REPLACE_RO_PASSWORD';
+-- GRANT SELECT ON `mcwforum`.* TO 'mcw_ro'@'localhost';
+-- FLUSH PRIVILEGES;

@@ -19,6 +19,11 @@ require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-install.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-cpt.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-cors.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-auth.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-db.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-content-guard.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-upload.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-turnstile.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-security-log.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-serialize.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-translate.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-forum.php';
@@ -32,6 +37,7 @@ add_action('plugins_loaded', static function () {
     MCW_Forum_CPT::init();
     MCW_Forum_CORS::init();
     MCW_Forum_Auth::init();
+    MCW_Forum_Upload::init();
     MCW_Forum_REST::init();
 });
 

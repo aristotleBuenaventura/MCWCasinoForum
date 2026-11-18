@@ -275,11 +275,9 @@ class MCW_Forum_Forum
                 $sql .= ' AND p.post_date_gmt >= %s';
                 $args[] = $since_gmt;
             }
-            $sql .= " GROUP BY p.post_author ORDER BY replies DESC LIMIT {$limit}";
-            if ($args) {
-                return $wpdb->get_results($wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
-            }
-            return $wpdb->get_results($sql, ARRAY_A) ?: [];
+            $sql .= ' GROUP BY p.post_author ORDER BY replies DESC LIMIT %d';
+            $args[] = $limit;
+            return $wpdb->get_results($wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
         };
 
         $since = gmdate('Y-m-d H:i:s', time() - 7 * DAY_IN_SECONDS);

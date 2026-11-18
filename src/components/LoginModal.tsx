@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useForum } from '../context/ForumContext'
 import { api } from '../lib/api'
+import { TurnstileWidget } from './TurnstileWidget'
 import { useToast } from './Toast'
 
 export function LoginLink({ children, className }: { children: ReactNode; className?: string }) {
@@ -24,6 +25,7 @@ export function LoginModal() {
   const [forgot, setForgot] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [error, setError] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
 
   useEffect(() => {
     if (!loginOpen) return
@@ -45,6 +47,7 @@ export function LoginModal() {
       setError('')
       setForgot(false)
       setShowPassword(false)
+      setTurnstileToken('')
     }
   }, [loginOpen])
 
@@ -52,7 +55,7 @@ export function LoginModal() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const res = await login(usernameOrEmail, password, stayLoggedIn)
+    const res = await login(usernameOrEmail, password, stayLoggedIn, turnstileToken || undefined)
     if (!res.ok) {
       setError(res.error)
       return
@@ -134,7 +137,10 @@ export function LoginModal() {
                     onClick={() => {
                       void api('/api/auth/forgot', {
                         method: 'POST',
-                        body: JSON.stringify({ email: resetEmail || usernameOrEmail }),
+                        body: JSON.stringify({
+                          email: resetEmail || usernameOrEmail,
+                          turnstileToken: turnstileToken || undefined,
+                        }),
                       }).then((res) => {
                         toast(res.ok ? 'If that email is registered, a reset link was sent.' : res.error)
                       })
@@ -152,6 +158,9 @@ export function LoginModal() {
                 />
                 Stay logged in
               </label>
+              <div className="mt-3">
+                <TurnstileWidget onToken={setTurnstileToken} />
+              </div>
               {error && <p className="text-sm text-[var(--color-danger)] mt-2">{error}</p>}
             </div>
           </div>
