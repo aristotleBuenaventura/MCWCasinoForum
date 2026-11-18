@@ -1,5 +1,5 @@
 export const ART = {
-  hero: '/assets/hero-crest.jpg',
+  hero: '/assets/mcw-logo.png',
   bannerPragmatic: '/assets/banner-pragmatic.jpg',
   bannerRecommended: '/assets/banner-recommended.jpg',
   bannerWelcome: '/assets/banner-welcome.jpg',
@@ -45,10 +45,3 @@ export const GUIDE_ART: Record<string, string> = {
   thread_wagering: ART.guideWager,
   thread_bankroll: ART.guideBankroll,
 }
-
-export const CATEGORY_LOGOS = [
-  { slug: 'jili', name: 'JILI', src: ART.logoJili },
-  { slug: 'pg-soft', name: 'PG Soft', src: ART.logoPg },
-  { slug: 'pragmatic-play', name: 'Pragmatic Play', src: ART.logoPragmatic },
-  { slug: 'bonuses', name: 'Casino Bonuses', src: ART.logoBonus },
-]

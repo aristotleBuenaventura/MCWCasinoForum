@@ -118,15 +118,33 @@ class MCW_Forum_Serialize
         ];
     }
 
+    /** Provider / studio brand community slugs — never translate the display name. */
+    private static function is_brand_category_slug(string $slug): bool
+    {
+        static $slugs = null;
+        if ($slugs === null) {
+            $slugs = [];
+            if (class_exists('MCW_Forum_Providers')) {
+                foreach (MCW_Forum_Providers::catalog() as $brand) {
+                    $slugs[$brand['slug']] = true;
+                }
+            }
+        }
+        return isset($slugs[$slug]);
+    }
+
     public static function map_category(WP_Term $term, array $counts, string $lang = 'en'): array
     {
         $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
         $parent = $term->parent ? 'cat_' . $term->parent : null;
         $name = html_entity_decode($term->name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $description = html_entity_decode($term->description ?: '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $keep_brand_name = self::is_brand_category_slug((string) $term->slug);
         if ($lang !== 'en') {
-            // Cache-only (React also has CATEGORY_NAME_BN fallback).
-            $name = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'name', $name, $lang, false);
+            // Brand / provider names stay English; other forums may use cached BN labels.
+            if (!$keep_brand_name) {
+                $name = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'name', $name, $lang, false);
+            }
             if ($description !== '') {
                 $description = MCW_Forum_Translate::localized_term_field((int) $term->term_id, 'description', $description, $lang, false);
             }
@@ -156,11 +174,17 @@ class MCW_Forum_Serialize
         ];
     }
 
+    /** Raw stored title — never WPML/UI-language filtered (game + provider brands stay EN). */
+    private static function raw_post_title(WP_Post $post): string
+    {
+        return html_entity_decode((string) $post->post_title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
     public static function map_cms(WP_Post $post): array
     {
         return [
             'id' => (string) $post->ID,
-            'title' => get_the_title($post),
+            'title' => self::raw_post_title($post),
             'subtitle' => (string) get_post_meta($post->ID, 'mcw_subtitle', true),
             'imageUrl' => (string) get_post_meta($post->ID, 'mcw_image_url', true),
             'url' => (string) get_post_meta($post->ID, 'mcw_url', true),
@@ -172,12 +196,13 @@ class MCW_Forum_Serialize
     {
         return [
             'id' => (string) $post->ID,
-            'name' => get_the_title($post),
+            'name' => self::raw_post_title($post),
             'subtitle' => (string) get_post_meta($post->ID, 'mcw_subtitle', true),
             'imageUrl' => (string) get_post_meta($post->ID, 'mcw_image_url', true),
             'url' => (string) get_post_meta($post->ID, 'mcw_url', true),
             'rating' => (float) get_post_meta($post->ID, 'mcw_rating', true),
             'order' => (int) get_post_meta($post->ID, 'mcw_order', true),
+            'homeTop' => (bool) get_post_meta($post->ID, 'mcw_home_top', true),
         ];
     }
 }

@@ -9,7 +9,7 @@ export function Footer() {
       <div className="w-full px-4 py-8 grid sm:grid-cols-2 lg:grid-cols-6 gap-6 text-[13px]">
         <div className="lg:col-span-2">
           <div className="flex items-center gap-2">
-            <img src="/assets/hero-crest.jpg" alt="" className="h-8 w-8 rounded object-cover" />
+            <img src="/assets/mcw-logo.png" alt="MCW Forum" className="h-8 w-8 rounded object-cover" />
             <div>
               <div className="font-semibold gold-text">MCW Forum</div>
               <div className="text-[11px] prose-muted">{t('footer.tagline')}</div>

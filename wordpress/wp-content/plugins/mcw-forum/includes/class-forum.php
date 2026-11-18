@@ -10,11 +10,23 @@ class MCW_Forum_Forum
     {
         global $wpdb;
         $lang = in_array($lang, ['en', 'bn'], true) ? $lang : 'en';
+        // Forum tree is language-agnostic (names localized in map_category).
+        // WPML hides untranslated brand children when current lang is bn — force default lang for the query.
+        $default_lang = (string) (apply_filters('wpml_default_language', null) ?: 'en');
+        $prev_lang = apply_filters('wpml_current_language', null);
+        $switched = false;
+        if ($prev_lang && $prev_lang !== $default_lang && has_action('wpml_switch_language')) {
+            do_action('wpml_switch_language', $default_lang);
+            $switched = true;
+        }
         $terms = get_terms([
             'taxonomy' => 'mcw_forum',
             'hide_empty' => false,
             'update_term_meta_cache' => true,
         ]);
+        if ($switched && has_action('wpml_switch_language')) {
+            do_action('wpml_switch_language', $prev_lang);
+        }
         if (is_wp_error($terms) || !$terms) {
             return [];
         }
@@ -184,6 +196,61 @@ class MCW_Forum_Forum
         return $threads;
     }
 
+    /**
+     * Top reply authors for the home "Weekly top contributors" widget.
+     * Prefers last 7 days; falls back to all-time so demos with older seeds still show data.
+     *
+     * @return list<array{replies:int,user:array|null}>
+     */
+    public static function weekly_contributors(int $limit = 3): array
+    {
+        global $wpdb;
+        $limit = max(1, min(10, $limit));
+
+        $fetch = static function (string $since_gmt) use ($wpdb, $limit): array {
+            $sql = "SELECT p.post_author AS author_id, COUNT(*) AS replies
+                    FROM {$wpdb->posts} p
+                    WHERE p.post_type = 'mcw_reply'
+                      AND p.post_status = 'publish'
+                      AND p.post_author > 0";
+            $args = [];
+            if ($since_gmt !== '') {
+                $sql .= ' AND p.post_date_gmt >= %s';
+                $args[] = $since_gmt;
+            }
+            $sql .= " GROUP BY p.post_author ORDER BY replies DESC LIMIT {$limit}";
+            if ($args) {
+                return $wpdb->get_results($wpdb->prepare($sql, ...$args), ARRAY_A) ?: [];
+            }
+            return $wpdb->get_results($sql, ARRAY_A) ?: [];
+        };
+
+        $since = gmdate('Y-m-d H:i:s', time() - 7 * DAY_IN_SECONDS);
+        $rows = $fetch($since);
+        if (!$rows) {
+            $rows = $fetch('');
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $user = get_user_by('id', (int) $row['author_id']);
+            if (!$user) {
+                continue;
+            }
+            if ((bool) get_user_meta($user->ID, 'mcw_banned', true)) {
+                continue;
+            }
+            $out[] = [
+                'replies' => (int) $row['replies'],
+                'user' => MCW_Forum_Serialize::public_user($user),
+            ];
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+        return $out;
+    }
+
     public static function term_id_from_forum_param(string $param): ?int
     {
         if ($param === '') {
@@ -196,7 +263,21 @@ class MCW_Forum_Forum
             return (int) $param;
         }
         $term = get_term_by('slug', $param, 'mcw_forum');
-        return $term ? (int) $term->term_id : null;
+        if ($term) {
+            return (int) $term->term_id;
+        }
+        // Brand slugs live on the default-language tree; WPML may hide them on /bn.
+        $default_lang = (string) (apply_filters('wpml_default_language', null) ?: 'en');
+        $prev = apply_filters('wpml_current_language', null);
+        if ($prev && $prev !== $default_lang && has_action('wpml_switch_language')) {
+            do_action('wpml_switch_language', $default_lang);
+            $term = get_term_by('slug', $param, 'mcw_forum');
+            do_action('wpml_switch_language', $prev);
+            if ($term) {
+                return (int) $term->term_id;
+            }
+        }
+        return null;
     }
 
     public static function json_body(WP_REST_Request $request): array

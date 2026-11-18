@@ -26,6 +26,25 @@ class MCW_Forum_CLI_Command
         MCW_Forum_Seed::run(!empty($assoc_args['reset']));
         WP_CLI::success('MCW forum seed complete.');
     }
+
+    /**
+     * Sync 28 Slot-Meter brand communities + provider CMS cards.
+     *
+     * ## EXAMPLES
+     *
+     *     wp mcw sync-providers
+     *
+     * @when after_wp_load
+     */
+    public function sync_providers($args, $assoc_args): void
+    {
+        $result = MCW_Forum_Providers::sync();
+        WP_CLI::success(sprintf(
+            'Synced %d communities and %d providers.',
+            $result['communities'],
+            $result['providers']
+        ));
+    }
 }
 
 WP_CLI::add_command('mcw', 'MCW_Forum_CLI_Command');

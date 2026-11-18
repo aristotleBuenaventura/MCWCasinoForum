@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/api'
+import { prefetchHomeFeed } from '../lib/homeFeedPrefetch'
+import { prefetchHomeExtras } from '../lib/homeExtrasPrefetch'
 import { isBodyEmpty, persistBodyImages, textFromBody } from '../lib/postBody'
 import type {
   Ad,
@@ -129,6 +131,7 @@ type ForumContextValue = {
   deleteTrendingGame: (id: string) => void
   saveProvider: (item: Omit<GameProvider, 'id'> & { id?: string }) => void
   deleteProvider: (id: string) => void
+  toggleProviderHomeTop: (id: string) => Promise<{ ok: true; homeTop: boolean } | { ok: false; error: string }>
   unreadCount: number
   cacheUsers: (users: User[]) => void
   cacheThreads: (threads: Thread[]) => void
@@ -187,7 +190,12 @@ export function ForumProvider({ children }: { children: ReactNode }) {
   const retry = useCallback(() => {
     setReady(false)
     void refresh()
-      .then(() => setReady(true))
+      .then(() => {
+        // Feed first, then extras — sequential for php -S; Home can take either in-flight promise.
+        const lang = window.location.pathname.startsWith('/bn') ? 'bn' : 'en'
+        void prefetchHomeFeed('latest', lang).then(() => prefetchHomeExtras(lang))
+        setReady(true)
+      })
       .catch((err: Error) => {
         setBootError(err.message)
         setReady(true)
@@ -480,6 +488,16 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     if (!isAdmin) return
     void api(`/api/admin/providers/${id}`, { method: 'DELETE' }).then(() => refresh())
   }
+  const toggleProviderHomeTop: ForumContextValue['toggleProviderHomeTop'] = async (id) => {
+    if (!isAdmin) return { ok: false, error: 'Admin only.' }
+    const res = await api<{ homeTop: boolean }>(`/api/admin/providers/${id}/home-top`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    if (!res.ok) return { ok: false, error: res.error }
+    await refresh()
+    return { ok: true, homeTop: !!res.homeTop }
+  }
 
   const value: ForumContextValue = {
     state,
@@ -537,6 +555,7 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     deleteTrendingGame,
     saveProvider,
     deleteProvider,
+    toggleProviderHomeTop,
     unreadCount,
     cacheUsers,
     cacheThreads,

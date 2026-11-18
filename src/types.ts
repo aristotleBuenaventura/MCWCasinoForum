@@ -138,6 +138,8 @@ export interface GameProvider {
   url: string
   rating: number
   order: number
+  /** Pinned to the front of the home brand carousel (max 4). */
+  homeTop?: boolean
 }
 
 export interface ForumState {

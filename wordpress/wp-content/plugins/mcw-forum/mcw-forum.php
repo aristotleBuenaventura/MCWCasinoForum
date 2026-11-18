@@ -24,6 +24,7 @@ require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-translate.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-forum.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-rest.php';
 require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-seed.php';
+require_once MCW_FORUM_PLUGIN_DIR . 'includes/class-providers.php';
 
 register_activation_hook(__FILE__, ['MCW_Forum_Install', 'activate']);
 

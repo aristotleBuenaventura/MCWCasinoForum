@@ -1,5 +1,5 @@
 import { Bookmark, ChevronDown, ChevronUp, MessageCircle, Search, Share2, Star } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Avatar } from '../components/Avatar'
 import { Username } from '../components/Username'
@@ -10,13 +10,50 @@ import { useForum } from '../context/ForumContext'
 import { localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { api } from '../lib/api'
-import { ART, CATEGORY_LOGOS, GUIDE_ART, REVIEW_ART, WIN_ART } from '../data/artwork'
+import { ART, GUIDE_ART, REVIEW_ART, WIN_ART } from '../data/artwork'
 import { prefetchCommunity } from '../lib/communityPrefetch'
+import { readHomeExtrasCache, writeHomeExtrasCache } from '../lib/homeExtrasCache'
+import { takePrefetchedHomeExtras } from '../lib/homeExtrasPrefetch'
+import { readHomeFeedCache, writeHomeFeedCache } from '../lib/homeFeedCache'
+import { takePrefetchedHomeFeed } from '../lib/homeFeedPrefetch'
+import { DragScrollRow } from '../components/DragScrollRow'
+import { brandCommunityCards } from '../lib/providerCommunity'
 import { prefetchThread } from '../lib/threadPrefetch'
 import { timeAgo } from '../lib/utils'
 import type { Thread, User } from '../types'
 
 type FeedTab = 'popular' | 'trending' | 'latest' | 'saved'
+
+function FeedItemSkeleton() {
+  return (
+    <article className="forum-card px-3 py-2.5 animate-pulse" aria-hidden="true">
+      <div className="flex gap-2.5">
+        <div className="vote-col pt-0.5 space-y-1">
+          <div className="h-3 w-3 mx-auto rounded bg-[var(--color-panel-2)]" />
+          <div className="h-3 w-5 mx-auto rounded bg-[var(--color-panel-2)]" />
+          <div className="h-3 w-3 mx-auto rounded bg-[var(--color-panel-2)]" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="h-3.5 w-3/4 max-w-md rounded bg-[var(--color-panel-2)]" />
+          <div className="h-2.5 w-full max-w-lg rounded bg-[var(--color-panel-2)]" />
+          <div className="h-2.5 w-48 rounded bg-[var(--color-panel-2)]" />
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function CardSkeleton({ imageH = 'h-24' }: { imageH?: string }) {
+  return (
+    <div className="forum-card overflow-hidden animate-pulse" aria-hidden="true">
+      <div className={`${imageH} w-full bg-[var(--color-panel-2)]`} />
+      <div className="p-2.5 space-y-2">
+        <div className="h-3 w-4/5 rounded bg-[var(--color-panel-2)]" />
+        <div className="h-2.5 w-24 rounded bg-[var(--color-panel-2)]" />
+      </div>
+    </div>
+  )
+}
 
 function Stars({ value = 4.8 }: { value?: number }) {
   return (
@@ -132,53 +169,103 @@ export function Home() {
   const [bigWins, setBigWins] = useState<Thread[]>([])
   const [weekly, setWeekly] = useState<{ user: User | null; replies: number }[]>([])
   const [feedReady, setFeedReady] = useState(false)
+  const [extrasReady, setExtrasReady] = useState(false)
   const members = memberCount
 
-  // Fast first paint: feed only, then extras in a second request.
+  // Feed first, then extras. Cache + prefetch make revisits / warm loads feel instant.
   useEffect(() => {
     let cancelled = false
-    setFeedReady(false)
-    setReviews([])
-    setGuides([])
-    setBigWins([])
-    setWeekly([])
 
-    void api<{ feed: { threads: Thread[] } }>(
-      `/api/home?tab=${encodeURIComponent(tab)}&sections=feed`,
-    ).then((res) => {
-      if (cancelled) return
-      if (!res.ok) {
-        setFeedReady(true)
-        return
+    const cachedFeed = readHomeFeedCache(tab, lang)
+    if (cachedFeed?.length) {
+      setFeed(cachedFeed)
+      setFeedReady(true)
+      cacheThreads(cachedFeed)
+      cacheUsers(cachedFeed.map((t) => t.author).filter((u): u is User => Boolean(u)))
+    } else {
+      setFeed([])
+      setFeedReady(false)
+    }
+
+    const cachedExtras = readHomeExtrasCache(lang)
+    if (cachedExtras) {
+      setReviews(cachedExtras.reviews)
+      setGuides(cachedExtras.guides)
+      setBigWins(cachedExtras.wins)
+      setWeekly(cachedExtras.weekly)
+      setExtrasReady(true)
+      cacheThreads([...cachedExtras.reviews, ...cachedExtras.guides, ...cachedExtras.wins])
+      cacheUsers(
+        [...cachedExtras.reviews, ...cachedExtras.guides, ...cachedExtras.wins]
+          .map((t) => t.author)
+          .filter((u): u is User => Boolean(u)),
+      )
+    } else {
+      setReviews([])
+      setGuides([])
+      setBigWins([])
+      setWeekly([])
+      setExtrasReady(false)
+    }
+
+    void (async () => {
+      const prefetched = takePrefetchedHomeFeed(tab, lang)
+      let feedThreads: Thread[] = []
+      if (prefetched) {
+        feedThreads = await prefetched
+      } else {
+        const feedRes = await api<{ feed: { threads: Thread[] } }>(
+          `/api/home?tab=${encodeURIComponent(tab)}&sections=feed`,
+        )
+        if (cancelled) return
+        if (!feedRes.ok) {
+          setFeedReady(true)
+          return
+        }
+        feedThreads = feedRes.feed?.threads ?? []
       }
-      const feedThreads = res.feed?.threads ?? []
+      if (cancelled) return
       setFeed(feedThreads)
+      writeHomeFeedCache(tab, lang, feedThreads)
       cacheThreads(feedThreads)
       cacheUsers(feedThreads.map((t) => t.author).filter((u): u is User => Boolean(u)))
       setFeedReady(true)
-    })
 
-    void api<{
-      reviews: Thread[]
-      guides: Thread[]
-      wins: Thread[]
-      weekly: { user: User | null; replies: number }[]
-    }>(`/api/home?tab=${encodeURIComponent(tab)}&sections=extras`).then((res) => {
-      if (cancelled || !res.ok) return
-      const nextReviews = res.reviews ?? []
-      const nextGuides = res.guides ?? []
-      const nextWins = res.wins ?? []
+      const prefetchedExtras = takePrefetchedHomeExtras(lang)
+      const extrasRes = prefetchedExtras
+        ? await prefetchedExtras.then((extras) => ({ ok: true as const, ...extras }))
+        : await api<{
+            reviews: Thread[]
+            guides: Thread[]
+            wins: Thread[]
+            weekly: { user: User | null; replies: number }[]
+          }>(`/api/home?tab=${encodeURIComponent(tab)}&sections=extras`)
+      if (cancelled || !extrasRes.ok) {
+        setExtrasReady(true)
+        return
+      }
+      const nextReviews = extrasRes.reviews ?? []
+      const nextGuides = extrasRes.guides ?? []
+      const nextWins = extrasRes.wins ?? []
+      const nextWeekly = extrasRes.weekly ?? []
       setReviews(nextReviews)
       setGuides(nextGuides)
       setBigWins(nextWins)
-      setWeekly(res.weekly ?? [])
+      setWeekly(nextWeekly)
+      writeHomeExtrasCache(lang, {
+        reviews: nextReviews,
+        guides: nextGuides,
+        wins: nextWins,
+        weekly: nextWeekly,
+      })
       cacheThreads([...nextReviews, ...nextGuides, ...nextWins])
       cacheUsers(
         [...nextReviews, ...nextGuides, ...nextWins]
           .map((t) => t.author)
           .filter((u): u is User => Boolean(u)),
       )
-    })
+      setExtrasReady(true)
+    })()
 
     return () => {
       cancelled = true
@@ -190,14 +277,19 @@ export function Home() {
       t.title.toLowerCase().includes(reviewQuery.toLowerCase()) ||
       t.tags.some((tag) => tag.toLowerCase().includes(reviewQuery.toLowerCase())),
   )
-  const providers = [...state.providers].sort((a, b) => a.order - b.order)
+  const providers = [...state.providers].sort((a, b) => a.order - b.order).slice(0, 5)
+  const brandCards = useMemo(
+    () => brandCommunityCards(state.providers, state.categories, 28),
+    [state.providers, state.categories],
+  )
+  const bonusesCategory = state.categories.find((c) => c.slug === 'bonuses')
 
-  const countFor = (...ids: string[]) =>
-    state.categories.filter((c) => ids.includes(c.id)).reduce((n, c) => n + c.threadCount, 0)
+  const countBySlug = (...slugs: string[]) =>
+    state.categories.filter((c) => slugs.includes(c.slug)).reduce((n, c) => n + c.threadCount, 0)
   const activity = [
-    { name: t('home.jiliGames'), count: countFor('cat_jili') },
-    { name: t('home.rtpDiscussions'), count: countFor('cat_rtp', 'cat_pragmatic') },
-    { name: t('home.casinoReviewsActivity'), count: countFor('cat_reviews') },
+    { name: t('home.jiliGames'), count: countBySlug('jili') },
+    { name: t('home.rtpDiscussions'), count: countBySlug('rtp-volatility', 'pragmatic-play') },
+    { name: t('home.casinoReviewsActivity'), count: countBySlug('casino-reviews') },
   ]
   const maxActivity = Math.max(...activity.map((a) => a.count), 1)
 
@@ -209,7 +301,7 @@ export function Home() {
       />
       <section className="forum-card overflow-hidden">
         <div className="flex items-center gap-4 px-4 py-3">
-          <img src={ART.hero} alt="MCW casino crest" className="h-[88px] w-[88px] rounded-full object-cover shrink-0 border border-[#d7ae55]/40" />
+          <img src={ART.hero} alt="MCW Forum" className="h-[88px] w-[88px] rounded-xl object-cover shrink-0 border border-[#d7ae55]/40" />
           <div className="min-w-0">
             <h1 className="text-[18px] font-semibold gold-text leading-snug">
               {t('home.heroTitle')}
@@ -231,26 +323,89 @@ export function Home() {
       </section>
 
       <section>
-        <div className="section-title mb-2">{t('home.categoryCards')}</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {CATEGORY_LOGOS.map((c) => (
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="section-title">{t('home.categoryCards')}</div>
+          <Link to="/communities/game-providers" className="text-[11px] gold-text hover:underline">
+            {t('home.viewAll')}
+          </Link>
+        </div>
+        <DragScrollRow>
+          {brandCards.map((c) => (
             <Link
-              key={c.slug}
+              key={c.key}
               to={`/communities/${c.slug}`}
-              className="forum-card p-1.5 hover:border-[var(--color-gold)]/40"
+              draggable={false}
+              className="forum-card p-2 flex flex-col items-center justify-center gap-1.5 min-h-[72px] hover:border-[var(--color-gold)]/40"
               onMouseEnter={() => prefetchCommunity(c.slug, { lang, limit: 20 })}
               onFocus={() => prefetchCommunity(c.slug, { lang, limit: 20 })}
-              onPointerDown={() => prefetchCommunity(c.slug, { lang, limit: 20 })}
             >
-              <img src={c.src} alt={localizeCategoryName(c.slug, c.name, lang)} className="h-14 w-full object-cover rounded-md" loading="lazy" decoding="async" />
+              {c.imageUrl ? (
+                <img
+                  src={c.imageUrl}
+                  alt={localizeCategoryName(c.slug, c.name, lang)}
+                  className="h-10 w-full max-w-[7rem] object-contain pointer-events-none"
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                />
+              ) : (
+                <span className="text-[13px] font-semibold gold-text text-center">
+                  {localizeCategoryName(c.slug, c.name, lang)}
+                </span>
+              )}
             </Link>
           ))}
-        </div>
+          {bonusesCategory && (
+            <Link
+              to="/communities/bonuses"
+              draggable={false}
+              className="forum-card p-2 flex flex-col items-center justify-center gap-1.5 min-h-[72px] hover:border-[var(--color-gold)]/40"
+              onMouseEnter={() => prefetchCommunity('bonuses', { lang, limit: 20 })}
+              onFocus={() => prefetchCommunity('bonuses', { lang, limit: 20 })}
+            >
+              <img
+                src={ART.logoBonus}
+                alt={t('home.bonusesCommunity')}
+                className="h-10 w-full max-w-[7rem] object-contain pointer-events-none"
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
+            </Link>
+          )}
+        </DragScrollRow>
       </section>
 
-      <section className="space-y-2">
-        {!feedReady && <div className="forum-card p-5 text-center prose-muted text-sm">{t('home.loading')}</div>}
-        {feedReady && feed.map((item) => <FeedItem key={item.id} thread={item} />)}
+      <section className="space-y-2" aria-busy={!feedReady && feed.length === 0}>
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <div className="section-title">
+            {t('home.feedTitle')}
+            <span className="ml-2 text-[11px] font-normal prose-muted">
+              {tab === 'popular'
+                ? t('rail.popular')
+                : tab === 'trending'
+                  ? t('rail.trending')
+                  : tab === 'saved'
+                    ? t('rail.saved')
+                    : t('rail.latest')}
+            </span>
+          </div>
+          <Link to="/communities" className="text-[11px] gold-text hover:underline">
+            {t('home.viewMoreDiscussions')}
+          </Link>
+        </div>
+        {!feedReady && feed.length === 0 && (
+          <>
+            <span className="sr-only">{t('home.loading')}</span>
+            <FeedItemSkeleton />
+            <FeedItemSkeleton />
+            <FeedItemSkeleton />
+            <FeedItemSkeleton />
+          </>
+        )}
+        {feed.map((item) => (
+          <FeedItem key={item.id} thread={item} />
+        ))}
         {feedReady && feed.length === 0 && (
           <div className="forum-card p-5 text-center prose-muted text-sm">
             {tab === 'saved' ? t('home.bookmarkHint') : t('home.noThreads')}
@@ -275,6 +430,13 @@ export function Home() {
           </div>
         </div>
         <div className="grid md:grid-cols-3 gap-2">
+          {!extrasReady && reviews.length === 0 && (
+            <>
+              <CardSkeleton />
+              <CardSkeleton />
+              <CardSkeleton />
+            </>
+          )}
           {filteredReviews.map((item) => (
             <Link key={item.id} to={`/thread/${item.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
               <ForumImage url={item.mediaUrl} fallback={REVIEW_ART[item.id]} className="h-24 w-full object-cover" />
@@ -296,6 +458,13 @@ export function Home() {
       <section>
         <div className="section-title mb-2">{t('home.guides')}</div>
         <div className="grid md:grid-cols-3 gap-2">
+          {!extrasReady && guides.length === 0 && (
+            <>
+              <CardSkeleton imageH="h-[72px]" />
+              <CardSkeleton imageH="h-[72px]" />
+              <CardSkeleton imageH="h-[72px]" />
+            </>
+          )}
           {guides.map((item) => (
             <Link key={item.id} to={`/thread/${item.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
               <ForumImage url={item.mediaUrl} fallback={GUIDE_ART[item.id]} className="h-[72px] w-full object-cover" />
@@ -327,6 +496,16 @@ export function Home() {
                   <span className="text-[12px] gold-text tabular-nums">{replies}</span>
                 </li>
               ) : null,
+            )}
+            {extrasReady && weekly.filter((w) => w.user).length === 0 && (
+              <li className="text-[12px] prose-muted">{t('home.weeklyEmpty')}</li>
+            )}
+            {!extrasReady && weekly.length === 0 && (
+              <li className="space-y-2 animate-pulse" aria-hidden="true">
+                <div className="h-8 rounded bg-[var(--color-panel-2)]" />
+                <div className="h-8 rounded bg-[var(--color-panel-2)]" />
+                <div className="h-8 rounded bg-[var(--color-panel-2)]" />
+              </li>
             )}
           </ul>
         </div>
@@ -369,6 +548,12 @@ export function Home() {
             <Link to="/communities/big-wins" className="text-[11px] gold-text">{t('home.viewAll')}</Link>
           </div>
           <div className="grid grid-cols-2 gap-2">
+            {!extrasReady && bigWins.length === 0 && (
+              <>
+                <CardSkeleton imageH="h-20" />
+                <CardSkeleton imageH="h-20" />
+              </>
+            )}
             {bigWins.slice(0, 4).map((item) => (
               <Link key={item.id} to={`/thread/${item.id}`} className="forum-card overflow-hidden hover:border-[var(--color-gold)]/40">
                 <ForumImage url={item.mediaUrl} fallback={WIN_ART[item.id]} className="h-20 w-full object-cover" />
@@ -382,7 +567,7 @@ export function Home() {
           <div className="space-y-2">
             {providers.map((p) => (
               <Link key={p.id} to={p.url || '/communities'} className="forum-card p-2 flex items-center gap-3 hover:border-[var(--color-gold)]/40">
-                <img src={p.imageUrl} alt="" className="h-10 w-16 object-cover rounded" />
+                <img src={p.imageUrl} alt="" className="h-10 w-16 object-contain rounded bg-[var(--color-panel-2)] shrink-0" />
                 <div>
                   <div className="text-[13px] font-semibold gold-text">{p.name}</div>
                   <Stars value={p.rating} />

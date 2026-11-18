@@ -51,50 +51,49 @@ class MCW_Forum_REST
     }
 
     /**
-     * Restrict WP_Query to WPML language (falls back to icl_translations when needed).
+     * Canonical listing query for en + bn.
+     * Same posts for both languages; $lang only affects serialization/translation on read.
+     * Drops WPML BN sibling posts that already have an EN original (avoid duplicates).
      *
      * @param array<string,mixed> $args
      * @return array<string,mixed>
      */
     private static function with_lang_query(array $args, string $lang): array
     {
-        if ($lang === '') {
+        // Do not filter the result set by UI language.
+        $args['lang'] = 'all';
+
+        if (!self::has_icl_table()) {
             return $args;
         }
-
-        $args['lang'] = $lang;
 
         global $wpdb;
         $table = $wpdb->prefix . 'icl_translations';
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
-            return $args;
-        }
-
         $post_type = $args['post_type'] ?? 'mcw_thread';
         if (is_array($post_type)) {
             $post_type = $post_type[0] ?? 'mcw_thread';
         }
         $element_type = 'post_' . $post_type;
 
-        if ($lang === 'bn') {
-            $ids = $wpdb->get_col($wpdb->prepare(
-                "SELECT element_id FROM {$table} WHERE element_type = %s AND language_code = %s",
-                $element_type,
-                'bn'
-            ));
-            $args['post__in'] = $ids ? array_map('intval', $ids) : [0];
-            return $args;
+        // BN translation clones that have a separate EN original → hide from feeds.
+        $dup_bn = $wpdb->get_col($wpdb->prepare(
+            "SELECT bn.element_id
+             FROM {$table} bn
+             INNER JOIN {$table} en
+               ON en.trid = bn.trid
+              AND en.element_type = bn.element_type
+              AND en.language_code = 'en'
+             WHERE bn.element_type = %s
+               AND bn.language_code = 'bn'
+               AND bn.element_id <> en.element_id",
+            $element_type
+        ));
+        if ($dup_bn) {
+            $exclude = array_map('intval', $dup_bn);
+            $existing = isset($args['post__not_in']) ? array_map('intval', (array) $args['post__not_in']) : [];
+            $args['post__not_in'] = array_values(array_unique(array_merge($existing, $exclude)));
         }
 
-        // English: explicit en rows + posts not yet registered in WPML
-        $bn_ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT element_id FROM {$table} WHERE element_type = %s AND language_code = %s",
-            $element_type,
-            'bn'
-        ));
-        if ($bn_ids) {
-            $args['post__not_in'] = array_map('intval', $bn_ids);
-        }
         return $args;
     }
 
@@ -150,19 +149,14 @@ class MCW_Forum_REST
         return $out;
     }
 
-    /** Resolve a thread id to the version in $lang (falls back to original). */
+    /**
+     * Always resolve to the canonical EN post. BN is a translated view of the same thread,
+     * not a separate WPML sibling used for reads.
+     */
     private static function resolve_thread_id(int $post_id, string $lang): int
     {
-        if ($lang === '' || $lang === 'en') {
-            $map = self::thread_translations($post_id);
-            return isset($map['en']) ? (int) $map['en'] : $post_id;
-        }
-        $translated = apply_filters('wpml_object_id', $post_id, 'mcw_thread', true, $lang);
-        if ($translated) {
-            return (int) $translated;
-        }
         $map = self::thread_translations($post_id);
-        return isset($map[$lang]) ? (int) $map[$lang] : $post_id;
+        return isset($map['en']) ? (int) $map['en'] : $post_id;
     }
 
     /** All thread ids in a WPML translation group (for shared comments). */
@@ -478,6 +472,12 @@ class MCW_Forum_REST
             'permission_callback' => '__return_true',
         ]);
 
+        register_rest_route($ns, '/admin/providers/(?P<id>[\\d]+)/home-top', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'admin_provider_home_top'],
+            'permission_callback' => '__return_true',
+        ]);
+
         register_rest_route($ns, '/admin/providers/(?P<id>[\\d]+)', [
             'methods' => 'DELETE',
             'callback' => [self::class, 'admin_delete_post'],
@@ -551,7 +551,10 @@ class MCW_Forum_REST
 
     public static function home(WP_REST_Request $request): WP_REST_Response
     {
-        $tab = sanitize_text_field((string) $request->get_param('tab') ?: 'popular');
+        $tab = sanitize_key((string) ($request->get_param('tab') ?: 'latest'));
+        if (!in_array($tab, ['latest', 'popular', 'trending', 'saved'], true)) {
+            $tab = 'latest';
+        }
         $viewer = MCW_Forum_Auth::current_wp_user();
         $viewer_id = $viewer ? $viewer->ID : null;
         $lang = self::request_lang($request) ?: 'en';
@@ -594,26 +597,163 @@ class MCW_Forum_REST
         ];
 
         if ($sections === 'feed' || $sections === 'all') {
-            $feed_q = new WP_Query(self::with_lang_query(array_merge($base, [
-                'posts_per_page' => 15,
-                'orderby' => 'date',
-                'order' => 'DESC',
-            ]), $lang));
-            $payload['feed'] = [
-                'page' => 1,
-                'limit' => 15,
-                'total' => (int) $feed_q->found_posts,
-                'threads' => MCW_Forum_Forum::decorate_threads($feed_q->posts, $viewer_id, $lang, true),
-            ];
+            $payload['feed'] = self::build_home_feed($tab, 8, $viewer_id, $lang, $base);
         }
 
         if ($sections === 'extras' || $sections === 'all') {
-            $payload['reviews'] = $by_slug('casino-reviews', 3);
-            $payload['guides'] = $by_slug('guides', 3);
-            $payload['wins'] = $by_slug('big-wins', 6);
+            $cache_key = 'mcw_home_extras_' . $lang;
+            $cached_extras = get_transient($cache_key);
+            if (is_array($cached_extras)
+                && isset($cached_extras['reviews'], $cached_extras['guides'], $cached_extras['wins'], $cached_extras['weekly'])
+            ) {
+                $payload['reviews'] = $cached_extras['reviews'];
+                $payload['guides'] = $cached_extras['guides'];
+                $payload['wins'] = $cached_extras['wins'];
+                $payload['weekly'] = $cached_extras['weekly'];
+            } else {
+                $extras = [
+                    'reviews' => $by_slug('casino-reviews', 3),
+                    'guides' => $by_slug('guides', 3),
+                    'wins' => $by_slug('big-wins', 3),
+                    'weekly' => MCW_Forum_Forum::weekly_contributors(3),
+                ];
+                set_transient($cache_key, $extras, 45);
+                $payload['reviews'] = $extras['reviews'];
+                $payload['guides'] = $extras['guides'];
+                $payload['wins'] = $extras['wins'];
+                $payload['weekly'] = $extras['weekly'];
+            }
         }
 
         return new WP_REST_Response($payload);
+    }
+
+    /**
+     * Home discussion feed: compact (8) + tab-aware sorting.
+     *
+     * @param array<string,mixed> $base
+     * @return array{page:int,limit:int,total:int,threads:array}
+     */
+    private static function build_home_feed(string $tab, int $limit, ?int $viewer_id, string $lang, array $base): array
+    {
+        global $wpdb;
+        $limit = max(1, min(20, $limit));
+
+        if ($tab === 'saved') {
+            if (!$viewer_id) {
+                return ['page' => 1, 'limit' => $limit, 'total' => 0, 'threads' => []];
+            }
+            $table = $wpdb->prefix . 'mcw_bookmarks';
+            $total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d",
+                $viewer_id
+            ));
+            $ids = array_map('intval', $wpdb->get_col($wpdb->prepare(
+                "SELECT thread_id FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT {$limit}",
+                $viewer_id
+            )));
+            if (!$ids) {
+                return ['page' => 1, 'limit' => $limit, 'total' => $total, 'threads' => []];
+            }
+            $q = new WP_Query(self::with_lang_query(array_merge($base, [
+                'post__in' => $ids,
+                'posts_per_page' => $limit,
+                'orderby' => 'post__in',
+            ]), $lang));
+            return [
+                'page' => 1,
+                'limit' => $limit,
+                'total' => $total,
+                'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id, $lang, true),
+            ];
+        }
+
+        if ($tab === 'popular' || $tab === 'trending') {
+            // Candidate pool (lang-filtered), then score in PHP.
+            $pool = new WP_Query(self::with_lang_query(array_merge($base, [
+                'posts_per_page' => 80,
+                'orderby' => 'date',
+                'order' => 'DESC',
+                'fields' => 'ids',
+                'no_found_rows' => true,
+            ]), $lang));
+            $candidate_ids = array_map('intval', $pool->posts ?: []);
+            if (!$candidate_ids) {
+                return ['page' => 1, 'limit' => $limit, 'total' => 0, 'threads' => []];
+            }
+
+            $likes_table = $wpdb->prefix . 'mcw_likes';
+            $placeholders = implode(',', array_fill(0, count($candidate_ids), '%d'));
+            $like_rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT target_id, COUNT(*) AS cnt
+                 FROM {$likes_table}
+                 WHERE target_type = 'thread' AND target_id IN ($placeholders)
+                 GROUP BY target_id",
+                ...$candidate_ids
+            ), ARRAY_A) ?: [];
+            $like_map = [];
+            foreach ($like_rows as $row) {
+                $like_map[(int) $row['target_id']] = (int) $row['cnt'];
+            }
+
+            update_meta_cache('post', $candidate_ids);
+            $now = time();
+            $ranked = [];
+            foreach ($candidate_ids as $id) {
+                $likes = $like_map[$id] ?? 0;
+                $views = (int) get_post_meta($id, 'mcw_views', true);
+                $pinned = (bool) get_post_meta($id, 'mcw_pinned', true);
+                $gmt = get_post_field('post_date_gmt', $id);
+                $created = $gmt ? strtotime($gmt . ' UTC') : $now;
+                $age_h = max(0.5, ($now - $created) / 3600);
+                if ($tab === 'popular') {
+                    $score = ($likes * 4) + $views + ($pinned ? 1000 : 0);
+                } else {
+                    // Trending: engagement with recency boost
+                    $score = (($likes * 3) + $views) / sqrt($age_h) + ($pinned ? 1000 : 0);
+                }
+                $ranked[] = ['id' => $id, 'score' => $score, 'pinned' => $pinned ? 1 : 0];
+            }
+            usort($ranked, static function ($a, $b) {
+                return ($b['pinned'] <=> $a['pinned']) ?: ($b['score'] <=> $a['score']);
+            });
+            $total = count($ranked);
+            $ids = array_map(static fn ($r) => (int) $r['id'], array_slice($ranked, 0, $limit));
+            $q = new WP_Query(array_merge($base, [
+                'post__in' => $ids,
+                'posts_per_page' => $limit,
+                'orderby' => 'post__in',
+            ]));
+            return [
+                'page' => 1,
+                'limit' => $limit,
+                'total' => $total,
+                'threads' => MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id, $lang, true),
+            ];
+        }
+
+        // latest (default): newest first; pinned floated to top after fetch
+        $q = new WP_Query(self::with_lang_query(array_merge($base, [
+            'posts_per_page' => max($limit * 3, 24),
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ]), $lang));
+        $threads = MCW_Forum_Forum::decorate_threads($q->posts, $viewer_id, $lang, true);
+        usort($threads, static function ($a, $b) {
+            $ap = !empty($a['pinned']) ? 1 : 0;
+            $bp = !empty($b['pinned']) ? 1 : 0;
+            if ($ap !== $bp) {
+                return $bp <=> $ap;
+            }
+            return strcmp((string) ($b['createdAt'] ?? ''), (string) ($a['createdAt'] ?? ''));
+        });
+        $threads = array_slice($threads, 0, $limit);
+        return [
+            'page' => 1,
+            'limit' => $limit,
+            'total' => (int) $q->found_posts,
+            'threads' => $threads,
+        ];
     }
 
     public static function list_threads(WP_REST_Request $request): WP_REST_Response
@@ -814,7 +954,9 @@ class MCW_Forum_REST
         update_post_meta($id, 'mcw_tags', $body['tags'] ?? []);
         update_post_meta($id, 'mcw_views', 0);
         $lang = self::request_lang($request) ?: 'en';
-        self::set_post_language((int) $id, 'mcw_thread', $lang, null, $lang === 'en' ? null : 'en');
+        // Canonical language is always EN; BN UI gets the same post with translated fields.
+        self::set_post_language((int) $id, 'mcw_thread', 'en', null, null);
+        update_post_meta((int) $id, 'mcw_source_lang', $lang);
         MCW_Forum_Translate::ensure_thread((int) $id);
         $post = get_post($id);
         $threads = MCW_Forum_Forum::decorate_threads([$post], $user->ID, $lang, false);
@@ -933,9 +1075,10 @@ class MCW_Forum_REST
             update_post_meta($id, 'mcw_parent_id', (string) $body['parentId']);
         }
         $lang = self::request_lang($request) ?: 'en';
-        // Translate once → store EN + BN for all future viewers
+        // Translate once → store EN + BN for all future viewers; keep reply as EN canonical.
         MCW_Forum_Translate::ensure_comment((int) $id, $blocks, $lang);
-        self::set_post_language((int) $id, 'mcw_reply', $lang, null, $lang === 'en' ? null : 'en');
+        self::set_post_language((int) $id, 'mcw_reply', 'en', null, null);
+        update_post_meta((int) $id, 'mcw_source_lang', $lang);
 
         $post = get_post($id);
         $mapped = MCW_Forum_Serialize::map_comment($post, $lang);
@@ -1493,17 +1636,82 @@ class MCW_Forum_REST
             return $resp;
         }
         $body = MCW_Forum_Forum::json_body($request);
-        $id = wp_insert_post([
-            'post_type' => 'mcw_provider',
-            'post_status' => 'publish',
-            'post_title' => sanitize_text_field($body['name'] ?? $body['title'] ?? 'Provider'),
-        ]);
+        $existing_id = isset($body['id']) ? (int) $body['id'] : 0;
+        $title = sanitize_text_field($body['name'] ?? $body['title'] ?? 'Provider');
+        if ($existing_id > 0 && get_post_type($existing_id) === 'mcw_provider') {
+            $id = $existing_id;
+            wp_update_post([
+                'ID' => $id,
+                'post_title' => $title,
+                'post_status' => 'publish',
+            ]);
+        } else {
+            $id = wp_insert_post([
+                'post_type' => 'mcw_provider',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+        }
+        if (is_wp_error($id) || !$id) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Could not save provider.'], 500);
+        }
         update_post_meta($id, 'mcw_subtitle', sanitize_text_field($body['subtitle'] ?? ''));
-        update_post_meta($id, 'mcw_image_url', esc_url_raw($body['imageUrl'] ?? ''));
-        update_post_meta($id, 'mcw_url', esc_url_raw($body['url'] ?? ''));
+        $image = (string) ($body['imageUrl'] ?? '');
+        update_post_meta($id, 'mcw_image_url', $image === '' || str_starts_with($image, '/') ? $image : esc_url_raw($image));
+        $url = (string) ($body['url'] ?? '');
+        update_post_meta($id, 'mcw_url', $url === '' || str_starts_with($url, '/') ? $url : esc_url_raw($url));
         update_post_meta($id, 'mcw_rating', (float) ($body['rating'] ?? 4.5));
         update_post_meta($id, 'mcw_order', (int) ($body['order'] ?? 0));
-        return new WP_REST_Response(['ok' => true]);
+        if (array_key_exists('homeTop', $body)) {
+            $set = self::set_provider_home_top((int) $id, !empty($body['homeTop']));
+            if (is_wp_error($set)) {
+                return new WP_REST_Response(['ok' => false, 'error' => $set->get_error_message()], 400);
+            }
+        }
+        return new WP_REST_Response(['ok' => true, 'id' => (string) $id]);
+    }
+
+    public static function admin_provider_home_top(WP_REST_Request $request): WP_REST_Response
+    {
+        if ($resp = self::guard($request)) {
+            return $resp;
+        }
+        $body = MCW_Forum_Forum::json_body($request);
+        $id = (int) $request['id'];
+        if (get_post_type($id) !== 'mcw_provider') {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Provider not found.'], 404);
+        }
+        $want = array_key_exists('homeTop', $body) ? !empty($body['homeTop']) : !((bool) get_post_meta($id, 'mcw_home_top', true));
+        $set = self::set_provider_home_top($id, $want);
+        if (is_wp_error($set)) {
+            return new WP_REST_Response(['ok' => false, 'error' => $set->get_error_message()], 400);
+        }
+        return new WP_REST_Response(['ok' => true, 'homeTop' => $want]);
+    }
+
+    /**
+     * @return true|WP_Error
+     */
+    private static function set_provider_home_top(int $id, bool $home_top)
+    {
+        if (!$home_top) {
+            update_post_meta($id, 'mcw_home_top', 0);
+            return true;
+        }
+        $tops = get_posts([
+            'post_type' => 'mcw_provider',
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'fields' => 'ids',
+            'meta_key' => 'mcw_home_top',
+            'meta_value' => '1',
+        ]);
+        $others = array_filter(array_map('intval', $tops ?: []), static fn ($pid) => $pid !== $id);
+        if (count($others) >= 4) {
+            return new WP_Error('home_top_limit', 'You can pin at most 4 providers to the home carousel.');
+        }
+        update_post_meta($id, 'mcw_home_top', 1);
+        return true;
     }
 
     public static function admin_delete_post(WP_REST_Request $request): WP_REST_Response

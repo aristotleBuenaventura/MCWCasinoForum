@@ -52,13 +52,17 @@ const en = {
   'home.viewProviders': 'View All Providers',
   'home.heroTitle': 'The grand forum for online casino players',
   'home.heroSub': 'Discuss, review and share strategies with a verified player community.',
-  'home.categoryCards': 'Category cards',
+  'home.categoryCards': 'Brand communities',
+  'home.bonusesCommunity': 'Casino Bonuses',
   'home.loading': 'Loading discussions…',
   'home.noThreads': 'No threads yet.',
   'home.bookmarkHint': 'Bookmark threads to save them here.',
   'home.latestReviews': 'Latest casino reviews',
   'home.guides': 'Community guides & resources',
   'home.weekly': 'Weekly top contributors',
+  'home.weeklyEmpty': 'No contributor rankings yet.',
+  'home.feedTitle': 'Discussions',
+  'home.viewMoreDiscussions': 'View all communities',
   'home.wins': 'Live community wins & screenshots',
   'home.providers': 'Top game providers',
   'home.activeMembers': 'Active members {n}',
@@ -240,13 +244,17 @@ const bn: Record<MessageKey, string> = {
   'home.viewProviders': 'সব প্রোভাইডার দেখুন',
   'home.heroTitle': 'অনলাইন ক্যাসিনো খেলোয়াড়দের গ্র্যান্ড ফোরাম',
   'home.heroSub': 'যাচাইকৃত প্লেয়ার কমিউনিটির সাথে আলোচনা, রিভিউ ও স্ট্র্যাটেজি শেয়ার করুন।',
-  'home.categoryCards': 'ক্যাটাগরি কার্ড',
+  'home.categoryCards': 'ব্র্যান্ড কমিউনিটি',
+  'home.bonusesCommunity': 'ক্যাসিনো বোনাস',
   'home.loading': 'আলোচনা লোড হচ্ছে…',
   'home.noThreads': 'এখনও কোনো থ্রেড নেই।',
   'home.bookmarkHint': 'এখানে সেভ করতে থ্রেড বুকমার্ক করুন।',
   'home.latestReviews': 'সর্বশেষ ক্যাসিনো রিভিউ',
   'home.guides': 'কমিউনিটি গাইড ও রিসোর্স',
   'home.weekly': 'সাপ্তাহিক টপ কন্ট্রিবিউটর',
+  'home.weeklyEmpty': 'এখনও কোনো কন্ট্রিবিউটর র‍্যাঙ্কিং নেই।',
+  'home.feedTitle': 'আলোচনা',
+  'home.viewMoreDiscussions': 'সব কমিউনিটি দেখুন',
   'home.wins': 'লাইভ কমিউনিটি উইন ও স্ক্রিনশট',
   'home.providers': 'টপ গেম প্রোভাইডার',
   'home.activeMembers': 'সক্রিয় সদস্য {n}',
@@ -384,13 +392,42 @@ const bn: Record<MessageKey, string> = {
 
 export const messages: Record<Lang, Record<MessageKey, string>> = { en, bn }
 
+/** Studio / brand community slugs — keep English names on every locale. */
+export const BRAND_NAME_SLUGS = new Set([
+  '5g-games',
+  'ae-sexy',
+  'ambs',
+  'awesome-gaming',
+  'big-time-gaming',
+  'booongo',
+  'bt-gaming',
+  'cq9',
+  'dna-gaming',
+  'drsot',
+  'fa-chai',
+  'hacksaw-gaming',
+  'jdb',
+  'jili',
+  'ka-gaming',
+  'maha-games',
+  'mega-win',
+  'microgaming',
+  'netent',
+  'nextspin',
+  'pg-soft',
+  'pragmatic-play',
+  'relax-gaming',
+  'rich88',
+  'royal-slot-gaming',
+  'spadegaming',
+  'wmt',
+  'yeebet',
+])
+
 /** Built-in Bengali names for known community slugs (API may also send translated names). */
 export const CATEGORY_NAME_BN: Record<string, string> = {
   'slot-games': 'স্লট গেমস',
   'game-providers': 'গেম প্রোভাইডার',
-  jili: 'জিলি',
-  'pg-soft': 'পিজি সফট',
-  'pragmatic-play': 'প্র্যাগম্যাটিক প্লে',
   'casino-reviews': 'ক্যাসিনো রিভিউ',
   bonuses: 'বোনাস',
   'rtp-volatility': 'আরটিপি ও ভোলাটিলিটি',
@@ -403,9 +440,9 @@ export const CATEGORY_NAME_BN: Record<string, string> = {
 export const CATEGORY_DESC_BN: Record<string, string> = {
   'slot-games': 'স্লট, বোনাস ও ভোলাটিলিটি নিয়ে আলোচনা।',
   'game-providers': 'স্টুডিও এবং তাদের গেম ক্যাটালগ।',
-  jili: 'জিলি টাইটেল, আরটিপি ও স্ট্র্যাটেজি।',
-  'pg-soft': 'পিজি সফট স্লট ও কমিউনিটি রিভিউ।',
-  'pragmatic-play': 'গেটস অব অলিম্পাস, সুইট বনানজা এবং আরও।',
+  jili: 'JILI titles, RTP talk, and strategies.',
+  'pg-soft': 'PG Soft slots and community reviews.',
+  'pragmatic-play': 'Gates of Olympus, Sweet Bonanza, and more.',
   'casino-reviews': 'ক্যাসিনো ও প্ল্যাটফর্মের প্লেয়ার রিভিউ।',
   bonuses: 'ওয়েলকাম অফার, ওয়েজারিং ও প্রোমো ম্যাথ।',
   'rtp-volatility': 'আরটিপি ও ভ্যারিয়েন্স কীভাবে ব্যাংকরোলে প্রভাব ফেলে।',
@@ -415,6 +452,8 @@ export const CATEGORY_DESC_BN: Record<string, string> = {
 }
 
 export function localizeCategoryName(slug: string, name: string, lang: Lang): string {
+  // Provider / studio brand names stay in English.
+  if (BRAND_NAME_SLUGS.has(slug)) return name
   if (lang === 'bn' && CATEGORY_NAME_BN[slug]) return CATEGORY_NAME_BN[slug]
   return name
 }

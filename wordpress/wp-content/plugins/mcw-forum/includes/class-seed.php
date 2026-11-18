@@ -52,10 +52,8 @@ class MCW_Forum_Seed
         $forums = [
             ['slug' => 'slot-games', 'name' => 'Slot Games', 'desc' => 'Discuss slots, bonuses, and volatility.', 'parent' => 0, 'order' => 1, 'featured' => 1],
             ['slug' => 'game-providers', 'name' => 'Game Providers', 'desc' => 'Studios and their game catalogs.', 'parent' => 0, 'order' => 2, 'featured' => 1],
-            ['slug' => 'jili', 'name' => 'JILI', 'desc' => 'JILI titles, RTP talk, and strategies.', 'parent' => 'game-providers', 'order' => 1, 'featured' => 0],
-            ['slug' => 'pg-soft', 'name' => 'PG Soft', 'desc' => 'PG Soft slots and community reviews.', 'parent' => 'game-providers', 'order' => 2, 'featured' => 0],
-            ['slug' => 'pragmatic-play', 'name' => 'Pragmatic Play', 'desc' => 'Gates of Olympus, Sweet Bonanza, and more.', 'parent' => 'game-providers', 'order' => 3, 'featured' => 0],
-            ['slug' => 'casino-reviews', 'name' => 'Casino Reviews', 'desc' => 'Player reviews of casinos and platforms.', 'parent' => 'game-providers', 'order' => 4, 'featured' => 0],
+            // Brand sub-forums are synced from MCW_Forum_Providers::catalog() after terms below.
+            ['slug' => 'casino-reviews', 'name' => 'Casino Reviews', 'desc' => 'Player reviews of casinos and platforms.', 'parent' => 'game-providers', 'order' => 100, 'featured' => 0],
             ['slug' => 'bonuses', 'name' => 'Bonuses', 'desc' => 'Welcome offers, wagering, and promo math.', 'parent' => 0, 'order' => 3, 'featured' => 1],
             ['slug' => 'rtp-volatility', 'name' => 'RTP & Volatility', 'desc' => 'How RTP and variance affect your bankroll.', 'parent' => 0, 'order' => 4, 'featured' => 0],
             ['slug' => 'responsible-gambling', 'name' => 'Responsible Gambling', 'desc' => 'Limits, tools, and staying in control.', 'parent' => 0, 'order' => 5, 'featured' => 0],
@@ -85,6 +83,15 @@ class MCW_Forum_Seed
             }
             update_term_meta($term_ids[$f['slug']], 'mcw_order', $f['order']);
             update_term_meta($term_ids[$f['slug']], 'mcw_featured', $f['featured']);
+        }
+
+        // Brand sub-forums + CMS providers (needed before demo threads that target jili/pg-soft/pp).
+        MCW_Forum_Providers::sync();
+        foreach (MCW_Forum_Providers::catalog() as $brand) {
+            $existing = term_exists($brand['slug'], 'mcw_forum');
+            if ($existing) {
+                $term_ids[$brand['slug']] = (int) (is_array($existing) ? $existing['term_id'] : $existing);
+            }
         }
 
         $threads = [
@@ -167,16 +174,7 @@ class MCW_Forum_Seed
                 update_post_meta($id, 'mcw_order', 1);
             }
         }
-        if (!get_posts(['post_type' => 'mcw_provider', 'numberposts' => 1, 'post_status' => 'any'])) {
-            foreach ([['PG Soft', 4.8], ['JILI Games', 4.6], ['Pragmatic Play', 4.7]] as $i => $row) {
-                $id = wp_insert_post(['post_type' => 'mcw_provider', 'post_status' => 'publish', 'post_title' => $row[0]]);
-                update_post_meta($id, 'mcw_subtitle', 'Provider');
-                update_post_meta($id, 'mcw_image_url', '');
-                update_post_meta($id, 'mcw_url', '#');
-                update_post_meta($id, 'mcw_rating', $row[1]);
-                update_post_meta($id, 'mcw_order', $i + 1);
-            }
-        }
+        // Providers + brand communities come from MCW_Forum_Providers::sync().
     }
 
     private static function wipe(): void

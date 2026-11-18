@@ -32,7 +32,7 @@ export function Header() {
     <header className="site-header sticky top-0 z-40">
       <div className="w-full px-3 h-12 flex items-center gap-3">
         <Link to="/" className="flex items-center gap-2 shrink-0">
-          <img src="/assets/hero-crest.jpg" alt="" className="h-7 w-7 rounded object-cover" />
+          <img src="/assets/mcw-logo.png" alt="MCW Forum" className="h-7 w-7 rounded object-cover" />
           <div className="leading-none">
             <div className="text-[13px] font-semibold gold-text">MCW</div>
             <div className="text-[9px] uppercase tracking-[0.16em] prose-muted">Forum</div>
