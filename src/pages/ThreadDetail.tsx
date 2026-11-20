@@ -21,8 +21,8 @@ import { localizeCategoryName } from '../i18n/messages'
 import { useLocale } from '../i18n/locale'
 import { setActiveThreadTranslations } from '../i18n/threadTranslations'
 import { emptyBody, ensureCommentBody, ensureThreadBody } from '../lib/postBody'
-import { readThreadCache } from '../lib/threadCache'
-import { prefetchThread, takePrefetchedThread } from '../lib/threadPrefetch'
+import { clearThreadCaches, readThreadCache, writeThreadCache } from '../lib/threadCache'
+import { clearThreadPrefetch, fetchThreadFresh, prefetchThread, takePrefetchedThread } from '../lib/threadPrefetch'
 import { compactNumber, forumTime } from '../lib/utils'
 import type { Comment, PostBody, Thread, User } from '../types'
 
@@ -192,7 +192,12 @@ export function ThreadDetail() {
 
     const sessionCached = readThreadCache(id, page, lang)
     if (sessionCached) {
+      // Paint cache immediately, then revalidate so a stale prefetch cannot hide new replies.
       apply(sessionCached)
+      void fetchThreadFresh(id, { page, limit: PER_PAGE, lang }).then((bundle) => {
+        if (cancelled || !bundle) return
+        apply(bundle)
+      })
       return () => {
         cancelled = true
         setActiveThreadTranslations(null)
@@ -326,13 +331,29 @@ export function ThreadDetail() {
     }
     const nextTotal = commentTotal + 1
     const lastPage = Math.max(1, Math.ceil(nextTotal / PER_PAGE))
+    const siblingIds = Object.values(thread.translations || {}).map(String)
+    // Drop EN+BN caches so language switches / page jumps refetch the new reply.
+    clearThreadCaches(thread.id, siblingIds)
+    clearThreadPrefetch(thread.id, siblingIds)
     setReplyBody(emptyBody())
     setQuoteParent(null)
     setCommentTotal(nextTotal)
     if (page !== lastPage) {
       goPage(lastPage)
     } else {
-      setComments((list) => (list.some((c) => c.id === posted.id) ? list : [...list, posted]))
+      setComments((list) => {
+        const next = list.some((c) => c.id === posted.id) ? list : [...list, posted]
+        const bundle = {
+          thread,
+          translations: thread.translations,
+          comments: next,
+          commentTotal: nextTotal,
+        }
+        // Seed both UI langs so EN↔BN refresh does not revive a stale empty list.
+        writeThreadCache(thread.id, page, 'en', bundle)
+        writeThreadCache(thread.id, page, 'bn', bundle)
+        return next
+      })
       setCommentsReady(true)
     }
     toast(t('common.replyPosted'))

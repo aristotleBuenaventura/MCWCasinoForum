@@ -8,12 +8,10 @@ function currentLang(): 'en' | 'bn' {
   return p === '/bn' || p.startsWith('/bn/') ? 'bn' : 'en'
 }
 
-/** Append WPML lang query so headless REST returns the active language. */
-function withLang(path: string): string {
-  const lang = currentLang()
-  if (lang === 'en') return path
-  const join = path.includes('?') ? '&' : '?'
+/** Append UI lang query so WPML + mcw-forum always get an explicit en|bn. */
+export function withLang(path: string, lang: 'en' | 'bn' = currentLang()): string {
   if (/[?&]lang=/.test(path)) return path
+  const join = path.includes('?') ? '&' : '?'
   return `${path}${join}lang=${lang}`
 }
 

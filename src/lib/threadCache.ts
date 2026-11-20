@@ -38,3 +38,22 @@ export function writeThreadCache(id: string, page: number, lang: string, bundle:
     commentTotal: bundle.commentTotal,
   })
 }
+
+/** Drop all cached pages for a thread (both langs). Call after posting a reply. */
+export function clearThreadCaches(threadId: string, extraIds: string[] = []) {
+  const ids = new Set([threadId, ...extraIds].filter(Boolean))
+  try {
+    const remove: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i)
+      if (!k || !k.startsWith(PREFIX)) continue
+      // key = mcw-thread-v1:{lang}:{id}:{page}
+      const rest = k.slice(PREFIX.length)
+      const parts = rest.split(':')
+      if (parts.length >= 2 && ids.has(parts[1])) remove.push(k)
+    }
+    for (const k of remove) sessionStorage.removeItem(k)
+  } catch {
+    /* ignore */
+  }
+}

@@ -42,3 +42,6 @@ wordpress-latest.zip
 *.njsproj
 *.sln
 *.sw?
+
+# local migrate artifacts
+_migrate/

@@ -27,10 +27,8 @@ class MCW_Forum_REST
             return $response;
         }
 
-        $lang = self::request_lang($request);
-        if ($lang === '') {
-            return $response;
-        }
+        // Default to EN when UI omits ?lang= so WPML cookies from /bn cannot stick.
+        $lang = self::request_lang($request) ?: 'en';
 
         if (has_action('wpml_switch_language')) {
             do_action('wpml_switch_language', $lang);

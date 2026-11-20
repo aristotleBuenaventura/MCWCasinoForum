@@ -5,6 +5,8 @@ import type { Thread } from '../types'
 export type { ThreadBundle }
 
 const inflight = new Map<string, Promise<ThreadBundle | null>>()
+/** Bumped on reply so stale in-flight prefetches cannot rewrite session cache. */
+let cacheEpoch = 0
 
 function key(id: string, page: number, lang: string) {
   return `${lang}:${id}:${page}`
@@ -31,6 +33,7 @@ export function prefetchThread(id: string, opts?: { page?: number; limit?: numbe
     return hit
   }
 
+  const epochAtStart = cacheEpoch
   const p = api<{
     thread: Thread
     translations?: Record<string, string>
@@ -50,10 +53,53 @@ export function prefetchThread(id: string, opts?: { page?: number; limit?: numbe
       comments,
       commentTotal: res.commentTotal ?? comments.length,
     } satisfies ThreadBundle
-    writeThreadCache(id, page, lang, bundle)
+    // Skip write if a reply cleared caches while this request was in flight.
+    if (epochAtStart === cacheEpoch) {
+      writeThreadCache(id, page, lang, bundle)
+    }
     return bundle
   })
 
+  inflight.set(k, p)
+  return p
+}
+
+/**
+ * Force a network fetch (ignore session cache + inflight) so reply lists stay fresh.
+ * Still respects cacheEpoch so overlapping stale requests cannot clobber newer data.
+ */
+export function fetchThreadFresh(id: string, opts?: { page?: number; limit?: number; lang?: string }) {
+  const page = opts?.page ?? 1
+  const limit = opts?.limit ?? 20
+  const lang = opts?.lang ?? (typeof window !== 'undefined' && window.location.pathname.startsWith('/bn') ? 'bn' : 'en')
+  const k = key(id, page, lang)
+  inflight.delete(k)
+  const epochAtStart = cacheEpoch
+  const p = api<{
+    thread: Thread
+    translations?: Record<string, string>
+    comments?: ThreadBundle['comments']
+    commentTotal?: number
+  }>(`/api/threads/${id}?include_comments=1&page=${page}&limit=${limit}`).then((res) => {
+    if (!res.ok) {
+      inflight.delete(k)
+      return null
+    }
+    const translations = res.thread.translations || res.translations || undefined
+    const thread = translations ? { ...res.thread, translations } : res.thread
+    const comments = res.comments ?? []
+    const bundle = {
+      thread,
+      translations,
+      comments,
+      commentTotal: res.commentTotal ?? comments.length,
+    } satisfies ThreadBundle
+    if (epochAtStart === cacheEpoch) {
+      writeThreadCache(id, page, lang, bundle)
+    }
+    inflight.delete(k)
+    return bundle
+  })
   inflight.set(k, p)
   return p
 }
@@ -63,4 +109,15 @@ export function takePrefetchedThread(id: string, page = 1, lang?: string) {
     lang ?? (typeof window !== 'undefined' && window.location.pathname.startsWith('/bn') ? 'bn' : 'en')
   const k = key(id, page, resolvedLang)
   return inflight.get(k) ?? null
+}
+
+/** Cancel in-flight prefetches so the next load refetches after a reply. */
+export function clearThreadPrefetch(threadId: string, extraIds: string[] = []) {
+  cacheEpoch += 1
+  const ids = new Set([threadId, ...extraIds].filter(Boolean))
+  for (const k of [...inflight.keys()]) {
+    // key = {lang}:{id}:{page}
+    const parts = k.split(':')
+    if (parts.length >= 2 && ids.has(parts[1])) inflight.delete(k)
+  }
 }

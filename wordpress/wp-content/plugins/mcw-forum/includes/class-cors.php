@@ -54,6 +54,9 @@ class MCW_Forum_CORS
             header('Referrer-Policy: strict-origin-when-cross-origin');
             header('X-Frame-Options: SAMEORIGIN');
             header("Content-Security-Policy: frame-ancestors 'self'");
+            // Forum JSON must never be cached by CDN/browser (replies go missing after refresh).
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
         }
     }
 }
