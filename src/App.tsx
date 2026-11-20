@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
+import { ScrollToTop } from './components/ScrollToTop'
 import { ToastProvider } from './components/Toast'
 import { ForumProvider } from './context/ForumContext'
 import { LocaleProvider, detectLangFromPath, type Lang } from './i18n/locale'
@@ -67,6 +68,7 @@ function LocalizedApp({ lang }: { lang: Lang }) {
     // keeps the previous lazy page painted until the next chunk resolves — feels
     // like clicks do nothing. Eager commit so Suspense fallback can show.
     <BrowserRouter key={lang} basename={basename} useTransitions={false}>
+      <ScrollToTop />
       <LocaleProvider lang={lang}>
         <ForumProvider>
           <ToastProvider>
