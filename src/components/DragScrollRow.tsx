@@ -5,14 +5,24 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
 }
 
+/** Ignore tiny pointer jitter so card Links still receive clicks. */
+const DRAG_THRESHOLD_PX = 12
+
 /** Horizontal pager: ~4 cards visible, drag + smooth page snap, no scrollbar. */
 export function DragScrollRow({ children, className = '' }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ active: boolean; startX: number; scrollLeft: number; moved: boolean }>({
+  const drag = useRef<{
+    active: boolean
+    startX: number
+    scrollLeft: number
+    moved: boolean
+    pointerId: number | null
+  }>({
     active: false,
     startX: 0,
     scrollLeft: 0,
     moved: false,
+    pointerId: null,
   })
   const [grabbing, setGrabbing] = useState(false)
   const [canPrev, setCanPrev] = useState(false)
@@ -69,22 +79,29 @@ export function DragScrollRow({ children, className = '' }: { children: ReactNod
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     const el = ref.current
     if (!el || e.button !== 0) return
-    // Don't start drag from arrow buttons (they're outside).
     drag.current = {
       active: true,
       startX: e.clientX,
       scrollLeft: el.scrollLeft,
       moved: false,
+      pointerId: e.pointerId,
     }
-    setGrabbing(true)
-    el.setPointerCapture(e.pointerId)
   }
 
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const el = ref.current
     if (!el || !drag.current.active) return
     const dx = e.clientX - drag.current.startX
-    if (Math.abs(dx) > 4) drag.current.moved = true
+    if (!drag.current.moved) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX) return
+      drag.current.moved = true
+      setGrabbing(true)
+      try {
+        el.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
     el.scrollLeft = drag.current.scrollLeft - dx
   }
 
@@ -92,14 +109,16 @@ export function DragScrollRow({ children, className = '' }: { children: ReactNod
     const el = ref.current
     if (!el || !drag.current.active) return
     const dx = e.clientX - drag.current.startX
+    const didMove = drag.current.moved
     drag.current.active = false
     setGrabbing(false)
     try {
-      el.releasePointerCapture(e.pointerId)
+      if (drag.current.pointerId != null) el.releasePointerCapture(drag.current.pointerId)
     } catch {
       /* ignore */
     }
-    if (drag.current.moved) {
+    drag.current.pointerId = null
+    if (didMove) {
       // Negative dx = finger moved left = scroll forward
       snapToPage(dx)
     }
