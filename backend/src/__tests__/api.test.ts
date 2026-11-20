@@ -145,12 +145,13 @@ describe("authorization", () => {
     expect(res.status).toBe(403);
   });
 
-  it("blocks members from equipping locked frames", async () => {
+  it("blocks members from self-equipping nameplates", async () => {
     const { a } = await login("alicewins", "password123");
     const denied = await a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "mythic" });
     expect(denied.status).toBe(403);
-    const invalid = await a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "<script>alert(1)</script>" });
-    expect(invalid.status).toBe(400);
+    expect(denied.body.error).toMatch(/staff/i);
+    const anyFrame = await a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "none" });
+    expect(anyFrame.status).toBe(403);
   });
 
   it("lets admins assign membership and frames", async () => {
@@ -166,9 +167,8 @@ describe("authorization", () => {
     expect(profile.body.user.membership).toBe("vip");
     expect(profile.body.user.nameFrame).toBe("gold");
     expect(profile.body.user.nameEmblem).toBe("crown");
-    const equipped = await alice.a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "silver" });
-    expect(equipped.status).toBe(200);
-    expect(equipped.body.user.nameFrame).toBe("silver");
+    const selfEquip = await alice.a.patch("/api/me/nameplate").set("Origin", origin).send({ frame: "silver" });
+    expect(selfEquip.status).toBe(403);
   });
 
   it("blocks IDOR thread delete", async () => {

@@ -621,7 +621,7 @@ export function Admin() {
         <div className="space-y-4">
           <section className="forum-card p-4 space-y-3">
             <h2 className="font-semibold">Availability</h2>
-            <p className="text-[12px] prose-muted">Disabled cosmetics cannot be equipped by members. New frames are added in code and appear here automatically.</p>
+            <p className="text-[12px] prose-muted">Disabled cosmetics cannot be assigned to members. Nameplates are set only from this admin panel.</p>
             <div>
               <div className="text-[12px] font-semibold mb-2">Frames</div>
               <div className="flex flex-wrap gap-2">

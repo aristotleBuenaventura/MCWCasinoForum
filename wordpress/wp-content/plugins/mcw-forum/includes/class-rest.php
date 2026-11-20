@@ -1732,24 +1732,7 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
-        $body = MCW_Forum_Forum::json_body($request);
-        $allowed_frames = ['none', 'gold', 'neon', 'royal'];
-        $allowed_emblems = ['none', 'crown', 'chip', 'diamond'];
-        if (isset($body['frame'])) {
-            $frame = sanitize_key((string) $body['frame']);
-            if (!in_array($frame, $allowed_frames, true)) {
-                return new WP_REST_Response(['ok' => false, 'error' => 'Invalid frame.'], 400);
-            }
-            MCW_Forum_DB::update_user_meta_allowed((int) $user->ID, 'mcw_name_frame', $frame);
-        }
-        if (isset($body['emblem'])) {
-            $emblem = sanitize_key((string) $body['emblem']);
-            if (!in_array($emblem, $allowed_emblems, true)) {
-                return new WP_REST_Response(['ok' => false, 'error' => 'Invalid emblem.'], 400);
-            }
-            MCW_Forum_DB::update_user_meta_allowed((int) $user->ID, 'mcw_name_emblem', $emblem);
-        }
-        return new WP_REST_Response(['ok' => true, 'user' => MCW_Forum_Serialize::public_user(get_user_by('id', $user->ID), true)]);
+        return new WP_REST_Response(['ok' => false, 'error' => 'Nameplates are assigned by staff.'], 403);
     }
 
     public static function register(WP_REST_Request $request): WP_REST_Response

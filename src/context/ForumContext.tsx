@@ -111,7 +111,6 @@ type ForumContextValue = {
   resolveReport: (id: string) => void
   banUser: (userId: string, banned?: boolean) => void
   setRole: (userId: string, role: Role) => void
-  equipNameplate: (patch: { frame?: NameFrame; emblem?: NameEmblem }) => Promise<{ ok: true } | { ok: false; error: string }>
   adminNameplate: (
     userId: string,
     patch: { membership?: Membership; frame?: NameFrame; emblem?: NameEmblem; unlockFrames?: NameFrame[]; unlockEmblems?: NameEmblem[] },
@@ -464,14 +463,6 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const equipNameplate: ForumContextValue['equipNameplate'] = async (patch) => {
-    if (!currentUser) return { ok: false, error: 'Please log in.' }
-    const res = await api<{ user?: User }>('/api/me/nameplate', { method: 'PATCH', body: JSON.stringify(patch) })
-    if (!res.ok) return { ok: false, error: res.error }
-    if (res.user) patchCachedUser(currentUser.id, res.user)
-    return { ok: true }
-  }
-
   const adminNameplate: ForumContextValue['adminNameplate'] = async (userId, patch) => {
     if (!isAdmin) return { ok: false, error: 'Admin access required.' }
     const res = await api<{ user?: User }>(`/api/admin/users/${userId}/nameplate`, {
@@ -594,7 +585,6 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     resolveReport,
     banUser,
     setRole,
-    equipNameplate,
     adminNameplate,
     markNotificationsRead,
     resetDemoData,

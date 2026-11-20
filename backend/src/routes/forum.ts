@@ -13,8 +13,6 @@ import {
   threadStats,
 } from "../lib/forum.js";
 import { mapComment, mapThread, parseLimit, parsePage, publicUser } from "../lib/serialize.js";
-import { canEquipEmblem, canEquipFrame, loadDisabledNameplate, nameplateCatalog } from "../lib/nameplateAccess.js";
-import { parseNameEmblem, parseNameFrame, parseUnlocks } from "../../../src/lib/nameplate.ts";
 import { assertCanPost, rateLimit } from "../lib/security.js";
 import { consumeRate } from "../lib/rateBuckets.js";
 import { optionalAuth, requireAuth, requireStaff } from "../middleware/auth.js";
@@ -48,59 +46,8 @@ forumRouter.patch("/me", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-forumRouter.get("/nameplate", requireAuth, async (req, res) => {
-  const me = await viewerRow(req.user!.userId);
-  if (!me) return res.status(401).json({ ok: false, error: "Please log in." });
-  const disabled = await loadDisabledNameplate();
-  res.json({
-    ok: true,
-    catalog: nameplateCatalog({
-      role: me.role,
-      membership: me.membership,
-      extra: me.nameUnlocks,
-      frame: me.nameFrame,
-      emblem: me.nameEmblem,
-      disabled,
-    }),
-  });
-});
-
-forumRouter.patch("/me/nameplate", requireAuth, async (req, res) => {
-  const me = await viewerRow(req.user!.userId);
-  if (!me) return res.status(401).json({ ok: false, error: "Please log in." });
-  const body = req.body as { frame?: unknown; emblem?: unknown };
-  const extra = parseUnlocks(me.nameUnlocks);
-  const disabled = await loadDisabledNameplate();
-  const frame = body.frame !== undefined ? parseNameFrame(body.frame) : parseNameFrame(me.nameFrame);
-  const emblem = body.emblem !== undefined ? parseNameEmblem(body.emblem) : parseNameEmblem(me.nameEmblem);
-  if (body.frame !== undefined && String(body.frame) !== frame) {
-    return res.status(400).json({ ok: false, error: "Invalid frame." });
-  }
-  if (body.emblem !== undefined && String(body.emblem) !== emblem) {
-    return res.status(400).json({ ok: false, error: "Invalid emblem." });
-  }
-  if (!canEquipFrame(frame, me.membership, extra, disabled.frames)) {
-    return res.status(403).json({ ok: false, error: "That frame is locked." });
-  }
-  if (!canEquipEmblem(emblem, me.membership, me.role, extra, disabled.emblems)) {
-    return res.status(403).json({ ok: false, error: "That emblem is locked." });
-  }
-  const updated = await prisma.user.update({
-    where: { id: me.id },
-    data: { nameFrame: frame, nameEmblem: emblem },
-  });
-  res.json({
-    ok: true,
-    user: publicUser(updated, { self: true }),
-    catalog: nameplateCatalog({
-      role: updated.role,
-      membership: updated.membership,
-      extra: updated.nameUnlocks,
-      frame: updated.nameFrame,
-      emblem: updated.nameEmblem,
-      disabled,
-    }),
-  });
+forumRouter.patch("/me/nameplate", requireAuth, async (_req, res) => {
+  return res.status(403).json({ ok: false, error: "Nameplates are assigned by staff." });
 });
 
 forumRouter.post("/threads", requireAuth, async (req, res) => {
