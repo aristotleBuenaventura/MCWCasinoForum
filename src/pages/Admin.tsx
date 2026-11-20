@@ -110,7 +110,6 @@ export function Admin() {
     banUser,
     setRole,
     adminNameplate,
-    resetDemoData,
     topCategories,
   } = useForum()
   const toast = useToast()
@@ -258,16 +257,6 @@ export function Admin() {
             {stats.users} members · {stats.threads} threads · {stats.comments} replies · {stats.openReports} open reports
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            if (!window.confirm('Reset all demo data? You will be logged out.')) return
-            void resetDemoData().then((res) => toast(res.ok ? 'Demo data reset' : res.error))
-          }}
-        >
-          Reset demo data
-        </button>
       </div>
 
       <div className="flex flex-wrap gap-2">

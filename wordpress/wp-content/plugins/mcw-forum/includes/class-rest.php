@@ -2053,6 +2053,11 @@ class MCW_Forum_REST
         if ($user instanceof WP_REST_Response) {
             return $user;
         }
+        // Disabled by default — wipe/reseed only via CLI (`wp mcw seed --reset`)
+        // or when MCW_ALLOW_DEMO_RESET is explicitly true in wp-config.
+        if (!defined('MCW_ALLOW_DEMO_RESET') || MCW_ALLOW_DEMO_RESET !== true) {
+            return new WP_REST_Response(['ok' => false, 'error' => 'Demo reset is disabled.'], 403);
+        }
         MCW_Forum_Seed::run(true);
         return new WP_REST_Response(['ok' => true]);
     }

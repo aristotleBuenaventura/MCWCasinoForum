@@ -13,6 +13,8 @@ define('MCW_CORS_ORIGIN', 'https://www.example.com');
  * (HTTPS=on / X-Forwarded-Proto) then use this as belt-and-suspenders.
  */
 define('MCW_FORCE_SECURE_COOKIES', true);
+// Never enable on staging/production. Local demo only if needed:
+// define('MCW_ALLOW_DEMO_RESET', true);
 
 /** Cloudflare Turnstile — use real secret from dashboard; never the 1x0000 test key. */
 define('MCW_TURNSTILE_SECRET', 'REPLACE_WITH_TURNSTILE_SECRET');

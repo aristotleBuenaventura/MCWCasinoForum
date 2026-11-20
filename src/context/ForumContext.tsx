@@ -116,7 +116,6 @@ type ForumContextValue = {
     patch: { membership?: Membership; frame?: NameFrame; emblem?: NameEmblem; unlockFrames?: NameFrame[]; unlockEmblems?: NameEmblem[] },
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   markNotificationsRead: () => void
-  resetDemoData: () => Promise<{ ok: true } | { ok: false; error: string }>
   getUser: (id: string) => User | undefined
   getUserByUsername: (username: string) => User | undefined
   getCategoryBySlug: (slug: string) => ForumCategory | undefined
@@ -479,14 +478,6 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     void api('/api/notifications/read', { method: 'POST' }).then(() => setUnreadCount(0))
   }
 
-  const resetDemoData: ForumContextValue['resetDemoData'] = async () => {
-    if (!isAdmin) return { ok: false, error: 'Admin access required.' }
-    const res = await api('/api/admin/reset', { method: 'POST' })
-    if (!res.ok) return { ok: false, error: res.error }
-    await refresh()
-    return { ok: true }
-  }
-
   const saveCategory: ForumContextValue['saveCategory'] = async (input) => {
     if (!isAdmin) return { ok: false, error: 'Admin access required.' }
     const res = await api('/api/admin/categories', { method: 'POST', body: JSON.stringify(input) })
@@ -587,7 +578,6 @@ export function ForumProvider({ children }: { children: ReactNode }) {
     setRole,
     adminNameplate,
     markNotificationsRead,
-    resetDemoData,
     getUser,
     getUserByUsername,
     getCategoryBySlug,

@@ -14,7 +14,6 @@ export function Moderation() {
     deleteThread,
     deleteComment,
     banUser,
-    resetDemoData,
   } = useForum()
   const toast = useToast()
 
@@ -37,17 +36,6 @@ export function Moderation() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title gold-text">Moderation</h1>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            if (!window.confirm('Reset all demo data? You will be logged out.')) return
-            resetDemoData()
-            toast('Demo data reset')
-          }}
-        >
-          Reset demo data
-        </button>
       </div>
 
       <section className="forum-card overflow-hidden">
